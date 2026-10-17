@@ -1,0 +1,26 @@
+# Only product tools. Disable the shipped coding-agent capabilities.
+- id: persistent-bash
+  disabled: true
+- id: persistent-pwsh
+  disabled: true
+- id: terminal-bash
+  disabled: true
+- id: terminal-pwsh
+  disabled: true
+- id: tool-fs
+  disabled: true
+- id: tool-working-directory
+  disabled: true
+- id: mcp-resources
+  disabled: true
+- insert:
+    - id: mojian-tools
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: mojian
+        transport: stdio
+        command: !!js process.execPath
+        args: !!js '[process.env.MOJIAN_BRIDGE, "--mcp"]'
+        env:
+          MOJIAN_SOCKET: !!js process.env.MOJIAN_SOCKET
+        failOnStartupError: true

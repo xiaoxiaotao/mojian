@@ -1,0 +1,60 @@
+import Foundation
+
+@MainActor enum ReliabilityTest {
+    static func run()async {
+        let directory=FileManager.default.temporaryDirectory.appendingPathComponent("mojian-reliability-"+UUID().uuidString)
+        defer{try? FileManager.default.removeItem(at:directory)}
+        var reads=0,sends=0,failSend=false,fullFlags:[Bool]=[]
+        var remoteLayout="mac.focus.red-v2"
+        let transport=DeviceTransport(state:{_,_ in
+            reads+=1
+            return DeviceState(tasks:[.init(id:"device-old",title:"Old device task",due:nil)],local_mode:true,needs_full:false,layout_id:remoteLayout,external_layout:true,baseline_ready:true)
+        },send:{_,_,_,_,_,_,full in
+            sends+=1;fullFlags.append(full)
+            if failSend{throw URLError(.networkConnectionLost)}
+        })
+        let store=DeskStore(dataDirectory:directory,startServices:false,transport:transport)
+        store.deviceToken="fixture-only";store.settings.deviceURL="http://fixture.invalid";store.settings.layout = .focus;store.settings.autoSync=true
+        await store.connectDevice()
+        precondition(store.connected && store.tasks.isEmpty,"Reconnect must not resurrect old device tasks")
+        await store.recoverConnection()
+        precondition(sends==1 && !store.syncPending)
+        await store.send(full:false)
+        precondition(sends==1,"Unchanged frame and metadata should not send twice")
+        failSend=true;store.settings.note="Offline saved note"
+        await store.send(full:false)
+        precondition(!store.connected && store.syncPending && !store.isSending)
+        failSend=false;await store.connectDevice();await store.recoverConnection()
+        precondition(store.connected && !store.syncPending && sends==3)
+        remoteLayout="phone-layout";await store.connectDevice();let count=sends
+        await store.recoverConnection()
+        precondition(sends==count && store.syncPending,"Reconnect must not overwrite phone layout")
+        precondition(fullFlags.allSatisfy{!$0},"Recovery must never silently full refresh")
+        precondition(ConnectionRecovery.delay(1)==5 && ConnectionRecovery.delay(6)==60)
+        precondition(ConnectionRecovery.transient(URLError(.timedOut)))
+        precondition(!ConnectionRecovery.transient(DeskError(message:"wrong token")))
+        var deliveredTitles:[[String]]=[]
+        let queued=DeskStore(dataDirectory:directory.appendingPathComponent("queue"),startServices:false,transport:DeviceTransport(state:transport.state,send:{_,_,_,tasks,_,_,_ in
+            deliveredTitles.append(tasks.map{$0.title})
+            try await Task.sleep(nanoseconds:30_000_000)
+        }))
+        remoteLayout="mac.focus.red-v2";queued.deviceToken="fixture-only";queued.settings.layout = .focus;queued.settings.autoSync=true
+        await queued.connectDevice()
+        let first=Task{await queued.send(full:false)}
+        try? await Task.sleep(nanoseconds:10_000_000)
+        queued.tasks.append(DeskTask(title:"Latest edit",due:nil))
+        await queued.send(full:false)
+        await first.value
+        precondition(deliveredTitles.count==2 && deliveredTitles.last==["Latest edit"] && !queued.isSending && !queued.syncPending,"Edits during transmission must drain the latest snapshot")
+        let bridge=HarnessBridge(timeoutNanoseconds:80_000_000,command:(URL(fileURLWithPath:"/bin/cat"),[]))
+        for _ in 0..<2 {
+            do{_=try await bridge.run(prompt:"fixture",key:"fixture-only",model:"fixture",context:[:],home:directory,session:nil,automatic:false);preconditionFailure("Expected timeout")}
+            catch{precondition(error.localizedDescription.contains("超时"))}
+        }
+        let request=Task{try await bridge.run(prompt:"fixture",key:"fixture-only",model:"fixture",context:[:],home:directory,session:nil,automatic:false)}
+        try? await Task.sleep(nanoseconds:10_000_000);bridge.close()
+        do{_=try await request.value;preconditionFailure("Expected cancellation")}
+        catch{precondition(error.localizedDescription.contains("停止"))}
+        print("PASS: offline recovery, unchanged-frame dedupe, no task resurrection, phone ownership, no automatic full refresh, bounded backoff, Agent timeout/restart/stop")
+    }
+}
