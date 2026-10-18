@@ -66,11 +66,19 @@ struct WorkSchedule {
     let discovery=DeviceDiscovery()
     private var ready=false,timer:Timer?,overrideUntil:Date?,overrideActive=false
     private var lastMinute="",lastFeed:Date = .distantPast,lastCommute:Date = .distantPast
-    private var lastFrame:Data?,appliedSignature="",deviceNeedsFull=true,notified=Set<String>()
+    private var lastFrame:Data?,notified=Set<String>()
+    @Published private(set) var appliedSignature=""
+    @Published private(set) var deviceNeedsFull=true
+    var requiresLayoutApplication:Bool{connected && (deviceNeedsFull || appliedSignature != signature)}
+    var phoneOwnsScreen:Bool{appliedSignature.hasSuffix(".phone")}
+    var layoutBlockedMessage:String{phoneOwnsScreen ? "屏幕当前由手机控制；待办已保存在 Mac。点击“接管并同步（全刷）”后生效。":"屏幕布局与 Mac 不同；请应用布局一次，再继续局部同步。"}
     private var pendingSync=false,pendingFull=false,debounce:Task<Void,Never>?
+    lazy var extensions=DeskExtensions(store:self)
+    private var taskBaseline:[DeskTask]?
+    private var lastDeviceCheck=Date.distantPast,isReadingDevice=false
     let directory:URL
     var active:[DeskTask]{InformationLogic.ordered(tasks)}
-    var doneToday:Int{tasks.filter{$0.done&&$0.completedAt.map{WorkSchedule.calendar.isDate($0,inSameDayAs:now)} == true}.count}
+    var doneToday:Int{tasks.filter{$0.done&&$0.skipped != true&&$0.completedAt.map{WorkSchedule.calendar.isDate($0,inSameDayAs:now)} == true}.count}
     var signature:String{afterHours ? "mac.calendar.red-v2": "mac."+settings.layout.rawValue+".red-v2"+(settings.layout == .custom ? "."+String(Int(settings.customRatio*100))+"."+settings.customModules.joined(separator:"-"):"")}
     var content:ScreenContent{ScreenContent(tasks:tasks,settings:settings,weather:weather,quotes:quotes,now:now,afterHours:afterHours,brief:brief,commute:commute,focusEnd:focusEnd,nextEvent:nextEvent,calendarStatus:calendarStatus)}
     init(dataDirectory:URL?=nil,startServices:Bool=true,transport:DeviceTransport=DeviceTransport(),notificationDelivery:NotificationDelivery=NotificationDelivery()){
@@ -81,6 +89,7 @@ struct WorkSchedule {
         harness.onTool={[weak self] name,args,automatic in await self?.handleAgentTool(name,args,automatic:automatic) ?? ["error":"应用已关闭"]}
         harness.onStatus={[weak self] text in self?.agentStatus=text}
         if let data=try? Data(contentsOf:directory.appendingPathComponent("reminder-history.json")),let saved=try? JSONDecoder().decode([String:Date].self,from:data){reminderHistory=saved.filter{Date().timeIntervalSince($0.value)<30*86400}}
+        if let bytes=try? Data(contentsOf:directory.appendingPathComponent("task-baseline.json")){taskBaseline=try? JSONDecoder().decode([DeskTask].self,from:bytes)}
         ready=true
         guard startServices else{return}
         NotificationCenter.default.addObserver(forName:NSApplication.willTerminateNotification,object:nil,queue:.main){[weak self]_ in Task{@MainActor in self?.harness.close()}}
@@ -88,7 +97,7 @@ struct WorkSchedule {
         Task {
             let values=await Task.detached { [Vault.get("device"),Vault.get("deepseek"),Vault.get("amap")] }.value
             if deviceToken.isEmpty {deviceToken=values[0]};if deepSeekKey.isEmpty {deepSeekKey=values[1]};if amapKey.isEmpty {amapKey=values[2]}
-            if !deviceToken.isEmpty && !connected {await connectDevice()}
+            if !settings.deviceURL.isEmpty && !connected {await connectDevice()}
         }
         importDevelopmentConfiguration()
         discovery.found={[weak self] url in guard let self else{return};self.settings.deviceURL=url;self.status="已发现工作台，正在验证连接…";Task{await self.connectDevice()}}
@@ -141,13 +150,12 @@ struct WorkSchedule {
             let values=await Task.detached { [Vault.get("device",interactive:true),Vault.get("deepseek",interactive:true),Vault.get("amap",interactive:true)] }.value
             if !values[0].isEmpty{deviceToken=values[0]};if !values[1].isEmpty{deepSeekKey=values[1]};if !values[2].isEmpty{amapKey=values[2]}
             status=values.allSatisfy{$0.isEmpty} ? "尚未读取到凭据，请完成系统授权或在设置中填写":"已读取保存的凭据"
-            if !deviceToken.isEmpty{await connectDevice()}
+            if !settings.deviceURL.isEmpty{await connectDevice()}
         }
     }
-    func start(){Task{if !settings.deviceURL.isEmpty && !deviceToken.isEmpty{await connectDevice();if !connected{try? await Task.sleep(nanoseconds:2_000_000_000);await connectDevice()}};await refreshFeeds();if settings.scheduleEnabled{await checkSchedule()}}}
+    func start(){Task{if !settings.deviceURL.isEmpty{await connectDevice();if !connected{try? await Task.sleep(nanoseconds:2_000_000_000);await connectDevice()}};await refreshFeeds();if settings.scheduleEnabled{await checkSchedule()}}}
     func connectDevice(importTasks:Bool=false)async {
         guard !isConnecting,!isSending else{return}
-        guard !deviceToken.isEmpty else{status="请先在设备设置中填写访问口令";syncStatus=status;return}
         isConnecting=true;syncStatus="正在连接工作台…"
         defer{isConnecting=false}
         do {
@@ -157,8 +165,9 @@ struct WorkSchedule {
             appliedSignature=state.layout_id ?? ""
             lastFrame=nil;lastContentKey=nil
             // Import is explicit: an empty Mac list may mean the user completed everything.
-            if importTasks {tasks=state.tasks.map{DeskTask(id:$0.id ?? UUID().uuidString,title:$0.title,due:$0.due.flatMap{parseISODate($0)},done:false,completedAt:nil)}}
-            syncStatus=deviceNeedsFull || appliedSignature != signature ? "设备布局不同或已重启，请应用布局后同步":"已连接 · 可局部同步"
+            if importTasks {let incoming=TaskReconcile.items(state),ids=Set(TaskReconcile.items(state).map{$0.id});tasks=tasks.filter{$0.done && !ids.contains($0.id)}+incoming;rememberTasks(incoming)}
+            else if taskBaseline==nil,TaskReconcile.equal(tasks,TaskReconcile.items(state)){rememberTasks(TaskReconcile.items(state))}
+            syncStatus=deviceNeedsFull || appliedSignature != signature ? layoutBlockedMessage:"已连接 · 可局部同步"
             status=syncStatus
         }catch {
             connected=false;mayReconnect=ConnectionRecovery.transient(error);reconnectFailures+=1
@@ -167,42 +176,49 @@ struct WorkSchedule {
             status=syncStatus
         }
     }
-    @discardableResult func addTask(_ title:String,due:Date?)->Bool{let title=title.trimmingCharacters(in:.whitespacesAndNewlines);guard !title.isEmpty,title.count<=80 else{status="待办请填写1至80个字";return false};guard active.count<8 else{status="最多保留8项未完成待办，请先完成一项";return false};tasks.append(DeskTask(title:title,due:due));changed();return true}
-    func complete(_ id:String){
-        guard let i=tasks.firstIndex(where:{$0.id==id}) else{return}
-        if tasks[i].done {
-            guard active.count<8 else{status="最多保留8项未完成待办，请先完成一项";return}
-            if tasks[i].pinned == true && active.filter({$0.pinned == true}).count>=3{tasks[i].pinned=false}
-            tasks[i].done=false;tasks[i].completedAt=nil
+    @discardableResult func addTask(_ title:String,due:Date?,repeatRule:RepeatRule = .none)->Bool{let title=title.trimmingCharacters(in:.whitespacesAndNewlines);guard !title.isEmpty,title.count<=80 else{status="待办请填写1至80个字";return false};guard active.count<8 else{status="最多保留8项未完成待办，请先完成一项";return false};do{tasks.append(try RepeatRules.configured(DeskTask(title:title,due:due),repeatRule));changed();return true}catch{status=error.localizedDescription;return false}}
+    func complete(_ id:String,skip:Bool=false){
+        var updated=tasks
+        guard var i=updated.firstIndex(where:{$0.id==id}) else{return}
+        if updated[i].done {
+            if let nextID=updated[i].nextID{guard let next=updated.firstIndex(where:{$0.id==nextID && !$0.done}),RepeatRules.fingerprint(updated[next])==updated[i].nextKey else{status="下一次事项已修改或处理，无法直接恢复本次";return};updated.remove(at:next);i=updated.firstIndex(where:{$0.id==id})!}
+            guard updated.filter({!$0.done}).count<8 else{status="最多保留8项未完成待办，请先完成一项";return}
+            if updated[i].pinned==true && updated.filter({!$0.done && $0.pinned==true}).count>=3{updated[i].pinned=false}
+            updated[i].done=false;updated[i].completedAt=nil;updated[i].nextID=nil;updated[i].nextKey=nil;updated[i].skipped=nil
             if completionUndo?.taskID==id{completionUndo=nil}
         }else{
-            let stamp=Date();tasks[i].done=true;tasks[i].completedAt=stamp
-            completionUndo=TaskCompletionUndo(taskID:id,completedAt:stamp)
-            removeTaskNotifications(id)
+            let stamp=Date()
+            do{if let next=try RepeatRules.next(updated[i],at:stamp){guard !updated.contains(where:{$0.id==next.id}) else{status="下一次事项已存在，请先读取设备最新清单";return};updated[i].nextID=next.id;updated[i].nextKey=RepeatRules.fingerprint(next);updated.append(next)}}catch{status=error.localizedDescription;return}
+            updated[i].done=true;updated[i].completedAt=stamp;updated[i].skipped=skip
+            completionUndo=TaskCompletionUndo(taskID:id,completedAt:stamp);removeTaskNotifications(id)
         }
-        changed()
+        tasks=updated;changed()
     }
     func undoCompletion(){
         guard let undo=completionUndo,let task=tasks.first(where:{$0.id==undo.taskID && $0.done && $0.completedAt==undo.completedAt}) else{completionUndo=nil;return}
         complete(task.id)
     }
-    @discardableResult func updateTask(_ id:String,title:String,due:Date?)->Bool {
+    @discardableResult func updateTask(_ id:String,title:String,due:Date?,repeatRule:RepeatRule?=nil)->Bool {
         let clean=title.trimmingCharacters(in:.whitespacesAndNewlines)
         guard !clean.isEmpty,clean.count<=80 else{status="待办请填写1至80个字";return false}
         guard let i=tasks.firstIndex(where:{$0.id==id && !$0.done}) else{status="事项已完成或不存在，请关闭后重试";return false}
         let previous=tasks[i]
-        guard previous.title != clean || previous.due != due else{return true}
+        guard previous.title != clean || previous.due != due || repeatRule.map({$0.rawValue != (previous.repeatRule ?? "none")}) == true else{return true}
         removeTaskNotifications(id)
-        tasks[i].title=clean;tasks[i].due=due;changed();return true
+        var edited=tasks[i];edited.title=clean;if let old=edited.due,let changed=due,!WorkSchedule.calendar.isDate(old,inSameDayAs:changed){edited.repeatDay=nil};edited.due=due;do{edited=try RepeatRules.configured(edited,repeatRule ?? RepeatRule(rawValue:edited.repeatRule ?? "none") ?? .none)}catch{status=error.localizedDescription;return false};tasks[i]=edited;changed();return true
     }
     func changed(){syncRetryAllowed=true;syncPending=true;syncStatus="已保存在 Mac，等待同步";debounce?.cancel();debounce=Task{try? await Task.sleep(nanoseconds:700_000_000);if !Task.isCancelled,settings.autoSync{debounce=nil;await send(full:false)}}}
     func applyLayout()async{await send(full:true)}
     func send(full:Bool)async {
         if isSending{pendingSync=true;pendingFull=pendingFull||full;syncPending=true;return}
         guard connected else{syncPending=true;syncStatus="已保存在 Mac，工作台连接后同步";status=syncStatus;return}
-        if !full&&(deviceNeedsFull||appliedSignature != signature){syncPending=true;syncStatus="布局或模式已改变，请应用布局全刷一次";status=syncStatus;return}
+        if !full&&(deviceNeedsFull||appliedSignature != signature){syncPending=true;syncStatus=layoutBlockedMessage;status=syncStatus;return}
         isSending=true
         do {
+            let latest=try await transport.state(settings.deviceURL,deviceToken)
+            guard full || latest.layout_id==signature else{appliedSignature=latest.layout_id ?? "";throw DeskError(message:layoutBlockedMessage)}
+            if let baseline=taskBaseline {let merged=try TaskReconcile.merge(base:baseline,local:tasks,remote:TaskReconcile.items(latest));tasks=tasks.filter{$0.done && !Set(merged.map{$0.id}).contains($0.id)}+merged}
+            else if !TaskReconcile.items(latest).isEmpty && !TaskReconcile.equal(tasks,TaskReconcile.items(latest)){throw DeskError(message:"首次同步清单不同，请先在设备设置中读取设备清单，未覆盖设备")}
             let frame=try ScreenRenderer.blackFrame(content)
             let sendingSignature=signature,sendingTasks=tasks
             let encoder=JSONEncoder();encoder.outputFormatting=[.sortedKeys]
@@ -210,8 +226,8 @@ struct WorkSchedule {
             let contentKey=SHA256.hash(data:durable).map{String(format:"%02x",$0)}.joined()
             if full || frame != lastFrame || contentKey != lastContentKey {
                 syncStatus=full ? "正在应用布局，约20秒…":"正在局部同步…";status=syncStatus
-                try await transport.send(settings.deviceURL,deviceToken,frame,sendingTasks,sendingSignature,contentKey,full)
-                lastFrame=frame;lastContentKey=contentKey;appliedSignature=sendingSignature;deviceNeedsFull=false;lastSync=Date()
+                try await transport.send(settings.deviceURL,deviceToken,frame,sendingTasks,sendingSignature,contentKey,full,latest.content_key)
+                lastFrame=frame;lastContentKey=contentKey;appliedSignature=sendingSignature;deviceNeedsFull=false;lastSync=Date();rememberTasks(sendingTasks)
                 if full{settings.autoSync=true}
             }
             syncRetryAllowed=true;syncPending=pendingSync;syncStatus="已同步到墨水屏 · "+dateText(lastSync ?? Date(),"HH:mm");status=syncStatus
@@ -227,11 +243,21 @@ struct WorkSchedule {
             if connected && (settings.autoSync||queuedFull){await send(full:queuedFull)}
         }
     }
+    func rememberTasks(_ value:[DeskTask]){taskBaseline=TaskReconcile.active(value);if let bytes=try? JSONEncoder().encode(taskBaseline){try? bytes.write(to:directory.appendingPathComponent("task-baseline.json"),options:.atomic)}}
+    func readDeviceChanges()async {
+        guard connected,!isSending,!isConnecting,!isReadingDevice,Date().timeIntervalSince(lastDeviceCheck)>=5 else{return};lastDeviceCheck=Date();isReadingDevice=true;defer{isReadingDevice=false};let local=tasks,destination=settings.deviceURL
+        do{let latest=try await transport.state(destination,deviceToken);guard tasks==local,!isSending,settings.deviceURL==destination else{return};let remoteTasks=TaskReconcile.items(latest);if let baseline=taskBaseline{let merged=try TaskReconcile.merge(base:baseline,local:tasks,remote:remoteTasks);if !TaskReconcile.equal(tasks,merged){tasks=tasks.filter{$0.done && !Set(merged.map{$0.id}).contains($0.id)}+merged;lastFrame=nil;lastContentKey=nil};rememberTasks(remoteTasks)};appliedSignature=latest.layout_id ?? "";deviceNeedsFull = !(latest.baseline_ready ?? !latest.needs_full) || !latest.local_mode || latest.external_layout != true;if requiresLayoutApplication{syncStatus=layoutBlockedMessage}}catch{syncStatus=error.localizedDescription;syncRetryAllowed=false}
+    }
     func recoverConnection()async {
-        guard !deviceToken.isEmpty,!settings.deviceURL.isEmpty,!isSending,!isConnecting else{return}
+        guard !settings.deviceURL.isEmpty,!isSending,!isConnecting else{return}
         if !connected && mayReconnect && Date()>=nextReconnect{await connectDevice()}
         // A different layout/phone ownership always requires explicit application, never a silent full refresh.
         if connected && syncPending && syncRetryAllowed && settings.autoSync && !deviceNeedsFull && appliedSignature==signature{await send(full:false)}
+    }
+    func applyTemplate(_ value:Preferences,calendar:Bool)async{settings=value;afterHours=calendar;overrideActive=true;overrideUntil=settings.scheduleEnabled ? WorkSchedule.nextBoundary(Date(),settings):nil;save();await applyLayout()}
+    func applyScene(_ scene:String)async {
+        afterHours=scene=="life";overrideActive=true;overrideUntil=settings.scheduleEnabled ? WorkSchedule.nextBoundary(Date(),settings):nil
+        settings.layout=scene=="focus" ? .pomodoro:.overview;var info=settings.info;info.artwork=scene=="life";if scene=="work"{info.cards=["plant","countdown"]};settings.info=info;save();await applyLayout()
     }
     func switchMode()async {
         afterHours.toggle();overrideActive=true;overrideUntil=settings.scheduleEnabled ? WorkSchedule.nextBoundary(Date(),settings):nil;save()
@@ -271,7 +297,7 @@ struct WorkSchedule {
         }}
     }
     func tick()async {
-        now=Date();if now.timeIntervalSince(lastCalendar)>60{refreshCalendar()};await recoverConnection();await checkSchedule()
+        now=Date();await extensions.automaticExchange();await readDeviceChanges();if now.timeIntervalSince(lastCalendar)>60{refreshCalendar()};await recoverConnection();await checkSchedule()
         if let end=focusEnd,end<=now{focusEnd=nil;notify("这一段专注完成了","起来走走，给眼睛一点休息。","focus-"+String(Int(end.timeIntervalSince1970)))}
         let minute=dateText(now,"yyyy-MM-dd HH:mm")
         if minute != lastMinute{lastMinute=minute;if settings.autoSync&&connected{await send(full:false)}}

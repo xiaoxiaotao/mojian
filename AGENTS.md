@@ -1,13 +1,34 @@
 # 本项目的显示与刷新约定
 
-以下为显示协议约束，贡献代码时请保留。
+贡献代码时保留下列显示协议与数据约束。
 
 - 时钟、天气、每支股票及每条待办独立局刷；普通内容变化不得触发自动整屏刷新。
-- 股票数字及箭头全部用黑色：▲上涨、▼下跌、—平盘，涨跌状态切换也局刷。红色改为固定品牌装饰，动态逾期提示使用黑色加粗。固定红色变化只随明确应用布局的全刷更新，其他区域继续局刷。
+- 股票数字及箭头全部用黑色：▲上涨、▼下跌、—平盘，涨跌状态切换也局刷。当前要求：红色改为固定品牌装饰，动态逾期提示使用黑色加粗。固定红色变化只随明确应用布局的全刷更新，其他区域继续局刷。
 - Mac红色版本mojian-red-v2预留整屏y=80至103行，黑白平面该带必须全白，局刷窗口不得跨入；固件校验版本和保留带，红色图案存于Flash，不新增48KB缓存。
 - 待办完成后消失，不保留删除线。新增和移除都要验证真实屏幕更新。
 - 同型号校正波形中 previous=0x13、current=0x10；更新后同步 previous RAM，PT_SCAN=0。保留 differential_transfer_test.cpp 的协议回归测试及区域规划测试。
 - 不以程序回执替代光学确认。涉及底层波形、极性、寄存器或扫描模式的调整需保留实物验证记录。
-- 当前实现与用户确认记录见 README.md、docs/TESTING.md。凭据仅放忽略文件；不提交个人状态或现场日志。
+- 当前实现与验证边界见 README.md、docs/TESTING.md。凭据仅放忽略文件，不提交个人状态与现场日志。
 - 已有独立手机直连模式：localMode开启时停止Mac画面轮询，不能让Mac旧帧覆盖手机直写内容。返回Mac需显式操作，不能自动切换或全刷。
 - BLE地址特征必须显式传字节长度；`setValue(String.c_str())`会匹配指针模板发送4字节错误值。保留手机真实IP读取验证。
+
+- 设备本地 HTTP 直连无需访问口令：手机页面自动连接，Mac 不以 deviceToken 阻止连接。兼容 Python 服务及 DeepSeek/高德凭据仍保留，不能误删。蓝牙负责发现，当前 HTTP 不要求维持蓝牙连接。
+
+- 手机编辑必须保留当前综合布局、天气、股票、信息卡片及固定红色；依据 layout_id 对应真实待办区域完整擦白后重绘。禁止回退为 phone-todo-v1 纯待办屏，禁止只更新旧版右侧区域。迁移明确全刷一次，日常新增/完成局刷；设备最新清单优先，不能恢复 Mac 已完成旧事项。手机接管的布局 ID 使用 .phone 后缀，Mac 需显式应用才接管。
+
+- Android 0.3.0 为原生客户端，设备页面 web/local.html 仍是兼容入口，不得以改兼容网页代替 APK 功能开发。手机 Native 的 Task/Renderer/API/主界面分别见 android/app/src/main/java/com/desktodo/app/；真机隔离测试入口 DeskChecks 不写屏幕、不改用户清单。原生手机按分钟局刷时钟，仅前台；五秒检查不是五秒全刷。
+
+- Android 0.4.0 助手写操作必须经确认卡片，确认时验证当前任务，模型调用本身只读或生成提案；禁止让模型直接写 ESP32。TaskProposal 返回独立事务，之后进入原有同步队列。Key 仅 Android Keystore 加密存储。AssistantChecks 使用隔离清单，不得向用户屏幕写测试任务。
+- Android 本地提醒默认关闭，系统权限由用户开启。完成/删除/改期后重算 AlarmManager 计划；免打扰、24小时补发上限、按任务ID+截止时间+阶段去重须保留 ReminderPlan/ReminderPolicy 回归验证。五秒检查仍仅前台，不宣称手机后台五秒轮询。
+
+- Android 0.5.0卡片用ScreenData/ScreenSync/DeskRenderer.cardsPatch：screenPending与任务dirty分开，视觉回执不能靠任务相同判定。cardsVersion=0旧基准禁止静默迁移；明确保存卡片/应用场景后更新。场景失败时后续局刷沿用设备已应用配置，禁止拿待应用场景覆盖当前模块。保留ScreenChecks区域清底、统计撤销与控制权检查。
+- 本机统计与历史列表分开保存；不将Mac和Android完成量简单相加。FocusAlarm只在真实会话截止后、权限允许且未发送时通知，暂停/结束必须取消；前台分钟显示与后台系统通知是两条不同路径。
+
+- 第三轮新增TaskReconcile三方合并与expected_content_key提交保护；任何冲突必须在绘制前拒绝。不能用Mac旧清单覆盖设备，也不能用共享统计恢复任务文字。
+- 可选共享服务server/community.py与原Python显示服务分离；owner/invite凭据不能混用，邀请仅可投递待审留言。服务默认loopback，公网HTTPS；ESP32本地无口令约定不变。模板严格视觉白名单，插件仅数据，不执行第三方脚本。
+- 共同完成量按任务ID及带时间戳墓碑合并，禁止相加各端总量；保留SharedData/ExtensionTest/ExtensionChecks/test_community回归。共享默认显式同步；可选每分钟自动共享须明确开启，安卓仅前台，不能宣称退出后后台自动。
+
+- 0.7.0/0.4.0重复待办采用共同repeatRule/repeatSeries/repeatDay字段；series+上海自然日决定下一次ID。完成或跳过只产生一条未来事项，月末保留原日号；跳过不计完成。撤销须验证下一次指纹，不覆盖已修改或已处理事项。
+- 配网仅加密BLE特征0004，S/C/E分包上限256字节、每包20字节；密码禁止进入草稿、应用状态文件、日志、模型与公开仓库。配网窗口需未配置首次启动或物理BOOT开启；连通后单条NVS记录原子保存，失败回原网。
+- 自主更新仅时钟/当前天气；独立任务请求，验证原始主机名与证书；天气请求可使用独立DNS兜底，不修改全局DNS。禁止setInsecure/任意URL。仅分区局刷，不扩展成自动全刷。重启仍需明确建基准。保留autonomy_geometry/provision_frames/weather_dns与分区持久区回归。
+- firmware/partitions.csv为单应用USB更新，保持NVS/LittleFS/coredump原地址容量；不得直接替换为会搬移文件区的默认分区或声称双槽OTA。

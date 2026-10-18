@@ -27,7 +27,7 @@ ditto -c -k --sequesterRsrc --keepParent dist/墨间.app dist/mojian-mac-arm64.z
 
 ## 测试层级
 
-`tools/test.sh` 依次运行四组原生测试和四组 C++ 测试，无需真实 Key，不向设备写画面：
+`tools/test.sh` 运行 Mac 原生、C++ 协议及网页布局隔离测试，无需真实 Key，不向设备写画面：
 
 | 原生入口 | 重点 |
 | --- | --- |
@@ -36,13 +36,15 @@ ditto -c -k --sequesterRsrc --keepParent dist/墨间.app dist/mojian-mac-arm64.z
 | `--information-test <输出目录>` | 旧数据兼容、置顶、周边界、日期、天气、各布局保留带 |
 | `--task-management-test` | 编辑/撤销/上限、提醒阶段、跨重启去重、通知失败重试 |
 
+新增 `--repeat-test`、`--extension-test` 检查重复事项、合并与共享边界。Python测试包含共享服务和持久分区地址保护。Android instrumentation 入口见 [Android说明](../android/README.md)。
+
 C++ 测试检查 previous/current 寄存器顺序、刷新窗口、分页位图、固定红色保留带。它们不证明实屏光学效果。
 
 ## 固件开发
 
 使用 `sh tools/pio.sh run`，脚本会正确选择原工作区缓存或独立克隆的用户级缓存，避免直接把相对 `core_dir` 解析到不期望的位置。Wi-Fi 头文件优先用本项目忽略文件，其次兼容原工作区共享配置。
 
-烧录前核对：GDEY075Z08、DESPI-C02、引脚、供电、实际串口和访问口令。只有显式执行 `-t upload` 才烧录。修改驱动波形时保留原参考文件并补实物验证记录；不要只凭 HTTP 成功回执判断显示效果。
+烧录前核对：GDEY075Z08、DESPI-C02、引脚、供电和实际串口。只有显式执行 `-t upload` 才烧录。修改驱动波形时保留原参考文件并补实物验证记录；不要只凭 HTTP 成功回执判断显示效果。
 
 ## 资源生成
 
@@ -53,7 +55,7 @@ C++ 测试检查 previous/current 寄存器顺序、刷新窗口、分页位图�
 
 生成后的头文件与资源保留提交，避免普通构建强制要求所有生成工具。
 
-## Android 兼容路径
+## Android 原生客户端
 
 需要 JDK 17、Android SDK 35、Gradle 8.9。设置 `ANDROID_HOME` 和可执行的 `gradle`，然后：
 

@@ -15,7 +15,8 @@
 #elif __has_include("../../../../common/config/wifi_secrets.h")
 #include "../../../../common/config/wifi_secrets.h"
 #else
-#error "Copy firmware/include/wifi_secrets.example.h to wifi_secrets.h and configure Wi-Fi."
+#define WEATHER_WIFI_SSID ""
+#define WEATHER_WIFI_PASSWORD ""
 #endif
 #if __has_include("device_config.h")
 #include "device_config.h"
@@ -26,7 +27,7 @@ constexpr size_t FRAME_BYTES=96000,PLANE_BYTES=48000;
 uint8_t *frame=nullptr;
 PagedPlane redFrame;
 bool bleSuspended=false;
-bool localMode=false;
+bool localMode=false,legacyPolling=false;
 void startBluetooth();
 struct FrameLease {
  bool restart;
@@ -70,7 +71,7 @@ String hashRedPlane(){
  char hex[65];for(int i=0;i<32;i++)sprintf(hex+i*2,"%02x",hash[i]);hex[64]=0;return String(hex);
 }
 void poll(){
- if(localMode)return;
+ if(localMode||!legacyPolling)return;
  HTTPClient state;state.begin(String(TODO_SERVER)+"/api/device/state");authorize(state);state.setTimeout(10000);
  int code=state.GET();Serial.printf("Device state HTTP=%d heap=%u\n",code,ESP.getFreeHeap());if(code!=200){state.end();return;}
  JsonDocument doc;auto error=deserializeJson(doc,state.getString());state.end();if(error)return;
@@ -139,7 +140,11 @@ void diagnostic(){
  }
  Serial.println("Probe finished; automatic updates remain paused");
 }
+extern bool autoFetching;
+void overlayAutonomy(uint8_t*,const String&);
+#include "wifi_provision.h"
 #include "local_portal.h"
+#include "autonomy.h"
 // BLE discovery shares an address only, never credentials.
 class DeskEndpointCallbacks : public NimBLECharacteristicCallbacks {
  void onRead(NimBLECharacteristic* characteristic) override {
@@ -149,11 +154,12 @@ class DeskEndpointCallbacks : public NimBLECharacteristicCallbacks {
 DeskEndpointCallbacks endpointCallbacks;
 class DeskBleCallbacks : public NimBLEServerCallbacks {
  void onConnect(NimBLEServer*) override {Serial.println("BLE connected");}
- void onDisconnect(NimBLEServer*) override {if(!bleSuspended){NimBLEDevice::startAdvertising();Serial.println("BLE advertising resumed");}}
+ void onDisconnect(NimBLEServer*) override {provisionFrames.reset();if(!bleSuspended){NimBLEDevice::startAdvertising();Serial.println("BLE advertising resumed");}}
 };
 void startBluetooth(){
  bleSuspended=false;
  NimBLEDevice::init("Desk-EPD");
+ NimBLEDevice::setSecurityAuth(true,false,true);NimBLEDevice::setSecurityIOCap(BLE_HS_IO_NO_INPUT_OUTPUT);
  NimBLEServer* server=NimBLEDevice::createServer();
  server->setCallbacks(new DeskBleCallbacks());
  NimBLEService* service=server->createService("7f510001-8be5-4b2c-a47f-87c7e72e7050");
@@ -161,6 +167,7 @@ void startBluetooth(){
  identity->setValue("Desk EPD / layout A / BLE identity only");
  auto* endpoint=service->createCharacteristic("7f510003-8be5-4b2c-a47f-87c7e72e7050",NIMBLE_PROPERTY::READ);
  endpoint->setCallbacks(&endpointCallbacks);
+ auto* provisioning=service->createCharacteristic("7f510004-8be5-4b2c-a47f-87c7e72e7050",NIMBLE_PROPERTY::READ|NIMBLE_PROPERTY::READ_ENC|NIMBLE_PROPERTY::WRITE|NIMBLE_PROPERTY::WRITE_ENC);provisioning->setCallbacks(&wifiProvisionCallbacks);
  service->start();
  auto* advertising=NimBLEDevice::getAdvertising();
  advertising->addServiceUUID(service->getUUID());
@@ -174,13 +181,13 @@ void setup(){
  esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 
  pinMode(13,INPUT);pinMode(12,OUTPUT);pinMode(14,OUTPUT);pinMode(27,OUTPUT);digitalWrite(27,HIGH);digitalWrite(12,HIGH);SPI.begin(18,19,23,27);
- WiFi.mode(WIFI_STA);WiFi.begin(WEATHER_WIFI_SSID,WEATHER_WIFI_PASSWORD);
+ beginSavedWifi();configTime(8*3600,0,"ntp.aliyun.com","time.cloudflare.com","pool.ntp.org");
  Serial.printf("WiFi initialized; heap=%u largest=%u\n",ESP.getFreeHeap(),ESP.getMaxAllocHeap());
- startBluetooth();setupLocalPortal();Serial.println("Quiet mode: no automatic full refresh");
+ startBluetooth();setupLocalPortal();setupAutonomy();Serial.println("Quiet mode: no automatic full refresh");
 }
 void loop(){
- handleLocalPortal();
- updateLocalClock();
+ updateProvisioning();handleLocalPortal();
+ updateAutonomy();updateLocalClock();
  if(Serial.available()&&Serial.read()=='t')diagnostic();
  if(WiFi.status()!=WL_CONNECTED){wifiReported=false;delay(1000);return;}
  if(!wifiReported){Serial.printf("WiFi connected with BLE; heap=%u largest=%u\n",ESP.getFreeHeap(),ESP.getMaxAllocHeap());wifiReported=true;}

@@ -1,0 +1,4 @@
+#include <cassert>
+#include <string>
+#include "../firmware/src/provision_frames.h"
+int main(){ProvisionFrames parser;std::string json="{\"ssid\":\"fixture-网络\",\"password\":\"fixture-only\"}";size_t offset=0;while(offset<json.size()){size_t n=std::min(size_t(19),json.size()-offset);uint8_t packet[20];packet[0]=offset? 'C':'S';memcpy(packet+1,json.data()+offset,n);assert(parser.feed(packet,n+1)==ProvisionFrames::MORE);offset+=n;}uint8_t end='E';assert(parser.feed(&end,1)==ProvisionFrames::DONE);assert(std::string(parser.data())==json);assert(parser.feed(&end,1)==ProvisionFrames::INVALID);uint8_t bad[]={'S',0};assert(parser.feed(bad,2)==ProvisionFrames::INVALID);uint8_t chunk[20];memset(chunk,'x',20);chunk[0]='S';assert(parser.feed(chunk,20)==ProvisionFrames::MORE);chunk[0]='C';for(int i=0;i<12;i++)assert(parser.feed(chunk,20)==ProvisionFrames::MORE);assert(parser.feed(chunk,20)==ProvisionFrames::INVALID);assert(parser.data()[0]==0);}

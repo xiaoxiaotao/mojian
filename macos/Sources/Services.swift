@@ -3,9 +3,10 @@ import CoreFoundation
 import CoreBluetooth
 
 struct DeviceState: Decodable {
-    struct Item:Decodable {var id:String?;var title:String;var due:String?}
+    struct Item:Decodable {var id:String?;var title:String;var due:String?;var pinned:Bool? = nil;var repeatRule:String? = nil;var repeatSeries:String? = nil;var repeatDay:Int? = nil}
     var accent_supported:Bool?
     var accent_version_supported:String?
+    var content_key:String? = nil
     var tasks:[Item];var local_mode:Bool;var needs_full:Bool;var layout_id:String?;var external_layout:Bool?;var baseline_ready:Bool?
 }
 enum Remote {
@@ -24,17 +25,19 @@ enum Remote {
         guard let components=URLComponents(string:origin),["http","https"].contains(components.scheme ?? ""),let host=components.host,!host.isEmpty,components.user==nil,components.password==nil,let url=URL(string:path,relativeTo:URL(string:origin)) else {throw DeskError(message:"请填写有效的工作台地址，例如 http://192.168.1.20")};return url.absoluteURL
     }
     static func state(_ origin:String,_ token:String)async throws->DeviceState {
-        let bytes=try await data(deviceURL(origin,"/api/local/state"),headers:["Authorization":"Bearer "+token]);return try JSONDecoder().decode(DeviceState.self,from:bytes)
+        let bytes=try await data(deviceURL(origin,"/api/local/state"));return try JSONDecoder().decode(DeviceState.self,from:bytes)
     }
-    static func send(origin:String,token:String,frame:Data,tasks:[DeskTask],layout:String,contentKey:String,full:Bool)async throws {
+    static func send(origin:String,token:String,frame:Data,tasks:[DeskTask],layout:String,contentKey:String,full:Bool,expected:String?=nil)async throws {
         if full {let state=try await state(origin,token);guard state.accent_version_supported == "mojian-red-v2" else{throw DeskError(message:"设备需升级固定红色布局固件后才能应用，请先更新固件")}}
         let iso=ISO8601DateFormatter()
-        let metadata:[String:Any]=["tasks":tasks.filter{!$0.done}.prefix(8).map{["id":$0.id,"title":$0.title,"due":$0.due.map{iso.string(from:$0)} as Any? ?? NSNull()]},"layout_id":layout,"content_key":contentKey,"external_layout":true,"accent_version":"mojian-red-v2","accent_style":String(layout.split(separator:".").dropFirst().first ?? "focus"),"epoch_seconds":Int(Date().timeIntervalSince1970),"updated_at":iso.string(from:Date())]
+        var metadata:[String:Any]=["tasks":tasks.filter{!$0.done}.prefix(8).map{["id":$0.id,"title":$0.title,"due":$0.due.map{iso.string(from:$0)} as Any? ?? NSNull(),"pinned":$0.pinned ?? false]},"layout_id":layout,"content_key":contentKey,"external_layout":true,"accent_version":"mojian-red-v2","accent_style":String(layout.split(separator:".").dropFirst().first ?? "focus"),"epoch_seconds":Int(Date().timeIntervalSince1970),"updated_at":iso.string(from:Date())]
+        if let expected{metadata["expected_content_key"]=expected}
+        var items:[[String:Any]]=[];for task in tasks.filter({!$0.done}).prefix(8){var value:[String:Any]=["id":task.id,"title":task.title,"due":task.due.map{iso.string(from:$0)} as Any? ?? NSNull(),"pinned":task.pinned ?? false];if let rule=task.repeatRule{value["repeatRule"]=rule;value["repeatSeries"]=task.repeatSeries ?? task.id;value["repeatDay"]=task.repeatDay ?? 1};items.append(value)};metadata["tasks"]=items
         let meta=try JSONSerialization.data(withJSONObject:metadata)
         let boundary="MoJian"+UUID().uuidString.replacingOccurrences(of:"-",with:"")
         var body=Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"metadata\"\r\n\r\n".utf8);body.append(meta)
         body.append(Data("\r\n--\(boundary)\r\nContent-Disposition: form-data; name=\"frame\"; filename=\"frame.bin\"\r\nContent-Type: application/octet-stream\r\n\r\n".utf8));body.append(frame);body.append(Data("\r\n--\(boundary)--\r\n".utf8))
-        _=try await data(deviceURL(origin,"/api/local/commit?full=\(full ? 1:0)"),body:body,headers:["Authorization":"Bearer "+token,"Content-Type":"multipart/form-data; boundary="+boundary],timeout:90)
+        _=try await data(deviceURL(origin,"/api/local/commit?full=\(full ? 1:0)"),body:body,headers:["Content-Type":"multipart/form-data; boundary="+boundary],timeout:90)
     }
     static func weather(_ settings:Preferences)async throws->WeatherSnapshot {
         let url=URL(string:"https://api.open-meteo.com/v1/forecast?latitude=\(settings.latitude)&longitude=\(settings.longitude)&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=Asia%2FShanghai&forecast_days=3&hourly=precipitation_probability,apparent_temperature,wind_speed_10m&wind_speed_unit=ms")!
@@ -109,15 +112,22 @@ enum Remote {
     @Published var status="通过蓝牙发现设备，自动读取局域网地址"
     var found:((String)->Void)?
     var central:CBCentralManager?;var peripheral:CBPeripheral?;var timeout:Timer?
-    let service=CBUUID(string:"7f510001-8be5-4b2c-a47f-87c7e72e7050"),endpoint=CBUUID(string:"7f510003-8be5-4b2c-a47f-87c7e72e7050")
-    func start(){stop();status="正在查找 Desk-EPD…";if central==nil{central=CBCentralManager(delegate:self,queue:.main)}else{scan()};timeout=Timer.scheduledTimer(withTimeInterval:30,repeats:false){[weak self]_ in Task{@MainActor in self?.stop();self?.status="暂未发现设备，刷屏结束后可重试"}}}
+    private var wifiPackets:[Data]=[],wifiIndex=0,configuring=false,reads=0
+    let service=CBUUID(string:"7f510001-8be5-4b2c-a47f-87c7e72e7050"),endpoint=CBUUID(string:"7f510003-8be5-4b2c-a47f-87c7e72e7050"),provision=CBUUID(string:"7f510004-8be5-4b2c-a47f-87c7e72e7050")
+    func start(){begin(nil)}
+    func configureWifi(_ ssid:String,_ password:String){guard (1...32).contains(ssid.utf8.count),password.isEmpty || (8...63).contains(password.utf8.count) else{status="Wi-Fi名称1至32字节，密码8至63字节或留空";return};do{let payload=try JSONSerialization.data(withJSONObject:["ssid":ssid,"password":password]);begin(payload)}catch{status="配网信息无效"}}
+    private func begin(_ payload:Data?){stop();reads=0;configuring=payload != nil;wifiIndex=0;if let payload{var offset=0;while offset<payload.count{let end=min(payload.count,offset+19);var packet=Data([offset==0 ? 83:67]);packet.append(payload[offset..<end]);wifiPackets.append(packet);offset=end};wifiPackets.append(Data([69]))};status="正在查找 Desk-EPD…";if central==nil{central=CBCentralManager(delegate:self,queue:.main)}else{scan()};timeout=Timer.scheduledTimer(withTimeInterval:configuring ? 90:30,repeats:false){[weak self]_ in Task{@MainActor in self?.stop();self?.status="操作超时，配网失败时设备保留原网络，请稍后重试"}}}
     func scan(){guard central?.state == .poweredOn else{status="请开启蓝牙并允许附近设备访问";return};central?.scanForPeripherals(withServices:[service])}
-    func stop(){timeout?.invalidate();central?.stopScan();if let p=peripheral{central?.cancelPeripheralConnection(p)};peripheral=nil}
+    func stop(){timeout?.invalidate();central?.stopScan();if let p=peripheral{central?.cancelPeripheralConnection(p)};peripheral=nil;for i in wifiPackets.indices{wifiPackets[i].resetBytes(in:0..<wifiPackets[i].count)};wifiPackets=[];configuring=false}
     func centralManagerDidUpdateState(_ central:CBCentralManager){if central.state == .poweredOn{scan()}else{status="请在系统设置中开启蓝牙，并允许墨间访问蓝牙"}}
-    func centralManager(_ central:CBCentralManager,didDiscover p:CBPeripheral,advertisementData:[String:Any],rssi:NSNumber){if peripheral != nil{return};peripheral=p;p.delegate=self;central.stopScan();status="正在读取设备地址…";central.connect(p)}
+    func centralManager(_ central:CBCentralManager,didDiscover p:CBPeripheral,advertisementData:[String:Any],rssi:NSNumber){if peripheral != nil{return};peripheral=p;p.delegate=self;central.stopScan();status="正在读取设备服务…";central.connect(p)}
     func centralManager(_ central:CBCentralManager,didConnect p:CBPeripheral){p.discoverServices([service])}
     func centralManager(_ central:CBCentralManager,didFailToConnect p:CBPeripheral,error:Error?){stop();status="连接未建立，请重试"}
-    func peripheral(_ p:CBPeripheral,didDiscoverServices error:Error?){guard error==nil,let s=p.services?.first else{stop();status="读取服务失败";return};p.discoverCharacteristics([endpoint],for:s)}
-    func peripheral(_ p:CBPeripheral,didDiscoverCharacteristicsFor service:CBService,error:Error?){guard error==nil,let c=service.characteristics?.first(where:{$0.uuid==endpoint}) else{stop();status="请更新设备固件以支持自动地址";return};p.readValue(for:c)}
-    func peripheral(_ p:CBPeripheral,didUpdateValueFor characteristic:CBCharacteristic,error:Error?){guard error==nil,let data=characteristic.value,let ip=String(data:data,encoding:.utf8) else{stop();status="读取地址失败";return};let parts=ip.split(separator:".");guard parts.count==4,parts.allSatisfy({Int($0).map{(0...255).contains($0)} ?? false}),ip != "0.0.0.0" else{stop();status="设备正在连接Wi-Fi，请稍后重试";return};let url="http://"+ip;stop();status="已发现 "+url;found?(url)}
+    func peripheral(_ p:CBPeripheral,didDiscoverServices error:Error?){guard error==nil,let s=p.services?.first else{stop();status="读取服务失败";return};p.discoverCharacteristics([endpoint,provision],for:s)}
+    func peripheral(_ p:CBPeripheral,didDiscoverCharacteristicsFor service:CBService,error:Error?){guard error==nil,let c=service.characteristics?.first(where:{$0.uuid==(configuring ? provision:endpoint)}) else{stop();status="请更新设备固件以支持蓝牙配网";return};if configuring{status="正在加密发送Wi-Fi配置；如有系统配对窗口请确认";writeNext(p,c)}else{p.readValue(for:c)}}
+    private func writeNext(_ p:CBPeripheral,_ c:CBCharacteristic){guard wifiIndex<wifiPackets.count else{p.readValue(for:c);return};let packet=wifiPackets[wifiIndex];wifiIndex+=1;p.writeValue(packet,for:c,type:.withResponse)}
+    func peripheral(_ p:CBPeripheral,didWriteValueFor characteristic:CBCharacteristic,error:Error?){guard p==peripheral else{return};guard error==nil else{stop();status="加密配网写入失败，请完成系统配对后重试";return};writeNext(p,characteristic)}
+    private func readProvisionLater(_ p:CBPeripheral){DispatchQueue.main.asyncAfter(deadline:.now()+2){[weak self] in guard let self,self.peripheral==p,let c=p.services?.flatMap({$0.characteristics ?? []}).first(where:{$0.uuid==self.provision}) else{return};p.readValue(for:c)}}
+    private func readEndpointLater(_ p:CBPeripheral){DispatchQueue.main.asyncAfter(deadline:.now()+2){[weak self] in guard let self,self.peripheral==p,let characteristic=p.services?.flatMap({$0.characteristics ?? []}).first(where:{$0.uuid==self.endpoint}) else{return};p.readValue(for:characteristic)}}
+    func peripheral(_ p:CBPeripheral,didUpdateValueFor characteristic:CBCharacteristic,error:Error?){guard p==peripheral,error==nil,let data=characteristic.value,let value=String(data:data,encoding:.utf8) else{stop();status="读取设备响应失败";return};if characteristic.uuid==provision{guard ["accepted","connected"].contains(value) else{stop();status=value=="press-boot" ? "请按住工作台BOOT两秒，开启五分钟配网窗口后重试":"配网未接受，请检查网络名称与密码";return};status="配置已接收，正在等待工作台接入Wi-Fi…";if value=="accepted"{reads+=1;if reads>25{stop();status="配网超时，工作台保留原网络";return};readProvisionLater(p)}else{readEndpointLater(p)};return};let parts=value.split(separator:".");if value=="0.0.0.0",reads<(configuring ? 25:5){reads+=1;status="工作台正在连接Wi-Fi…";readEndpointLater(p);return};guard parts.count==4,parts.allSatisfy({Int($0).map{(0...255).contains($0)} ?? false}),value != "0.0.0.0" else{stop();status="工作台尚未取得可用地址，请确认Wi-Fi名称、密码和2.4GHz网络";return};let url="http://"+value;stop();status="已发现 "+url;found?(url)}
 }

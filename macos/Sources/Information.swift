@@ -9,6 +9,12 @@ struct InformationSettings:Codable,Equatable {
     var cards=["nextEvent","outdoor"]
     var calendarEnabled=false
     var calendarIDs:[String]=[]
+    var deskStatus:String? = nil
+    var statusNote:String? = nil
+    var artwork:Bool? = nil
+    var habits:[DeskHabit]? = nil
+    var sharedCompletions:[String:SharedCompletion]? = nil
+    var plugin:DataPlugin? = nil
 }
 extension Preferences {
     var info:InformationSettings {get{information ?? InformationSettings()}set{information=newValue}}
@@ -28,6 +34,11 @@ struct NextCalendarEvent:Equatable {
     }
 }
 enum InformationLogic {
+    static func weekCount(_ tasks:[DeskTask],_ info:InformationSettings,at now:Date)->Int {
+        var records=info.sharedCompletions ?? [:];for task in tasks{if task.done,task.skipped != true,let at=task.completedAt{if (records[task.id]?.stamp ?? 0)<=Int64(at.timeIntervalSince1970*1000){records[task.id]=SharedCompletion(stamp:Int64(at.timeIntervalSince1970*1000),completedAt:Int64(at.timeIntervalSince1970*1000),deleted:false)}}else{records.removeValue(forKey:task.id)}}
+        let merged=records.compactMap{id,r -> DeskTask? in guard !r.deleted else{return nil};return DeskTask(id:id,title:"",done:true,completedAt:Date(timeIntervalSince1970:Double(r.completedAt)/1000))};return weekCount(merged,at:now)
+    }
+    static func plantStage(_ count:Int,_ goal:Int)->Int{min(5,max(0,count)*5/max(1,goal))}
     static func ordered(_ tasks:[DeskTask])->[DeskTask] {
         tasks.filter{!$0.done}.sorted {a,b in
             if (a.pinned ?? false) != (b.pinned ?? false){return a.pinned ?? false}
@@ -38,7 +49,7 @@ enum InformationLogic {
     static func weekCount(_ tasks:[DeskTask],at now:Date)->Int {
         var cal=WorkSchedule.calendar;cal.firstWeekday=2;cal.minimumDaysInFirstWeek=4
         guard let interval=cal.dateInterval(of:.weekOfYear,for:now) else{return 0}
-        return tasks.filter{$0.done && $0.completedAt.map{$0>=interval.start && $0<interval.end && $0<=now} == true}.count
+        return tasks.filter{$0.done && $0.skipped != true && $0.completedAt.map{$0>=interval.start && $0<interval.end && $0<=now} == true}.count
     }
     static func countdown(_ item:ImportantDate,at now:Date)->String {
         let cal=WorkSchedule.calendar

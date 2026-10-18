@@ -46,6 +46,10 @@ import Foundation
             precondition(bytes.count==48000 && bytes[8000..<10400].allSatisfy{$0==255})
             try! ScreenRenderer.savePNG(ScreenRenderer.render(content),to:output.appendingPathComponent(layout.rawValue+".png"))
         }
+        precondition(InformationLogic.plantStage(0,20)==0 && InformationLogic.plantStage(4,20)==1 && InformationLogic.plantStage(30,20)==5)
+        for key in ["plant","status"]{settings.layout = .overview;settings.info.cards=[key,"week"];let bytes=try! ScreenRenderer.blackFrame(ScreenContent(tasks:tasks,settings:settings,weather:weather,quotes:[],now:now));precondition(bytes[8000..<10400].allSatisfy{$0==255});try! ScreenRenderer.savePNG(ScreenRenderer.render(ScreenContent(tasks:tasks,settings:settings,weather:weather,quotes:[],now:now)),to:output.appendingPathComponent(key+".png"))}
+        settings.info.artwork=true
+        try! ScreenRenderer.savePNG(ScreenRenderer.render(ScreenContent(tasks:tasks,settings:settings,weather:weather,quotes:[],now:now,afterHours:true)),to:output.appendingPathComponent("life-artwork.png"))
         settings.layout = .agenda;settings.info.cards=["countdown","week"]
         try! ScreenRenderer.savePNG(ScreenRenderer.render(ScreenContent(tasks:tasks,settings:settings,weather:weather,quotes:[],now:now)),to:output.appendingPathComponent("countdown-week.png"))
         print("PASS: legacy persistence, pinned top-three, week boundary, countdown dates, weather freshness, settings restore, all layout BW reserve bands; illustrative previews exported")

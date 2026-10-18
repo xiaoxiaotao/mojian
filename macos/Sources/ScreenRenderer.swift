@@ -90,7 +90,7 @@ private struct Painter {
             let hour=String(stamp.dropFirst(8).prefix(2)),minute=String(stamp.dropFirst(10).prefix(2))
             time="\(month)/\(day) \(hour):\(minute)"
         }
-        text("行情可能延迟 · "+time+"   天气 Open-Meteo   本周完成 \(InformationLogic.weekCount(c.tasks,at:c.now)) / \(c.settings.info.weeklyGoal) 项",24,470,8,752,10)
+        text("行情可能延迟 · "+time+"   天气 Open-Meteo   本周完成 \(InformationLogic.weekCount(c.tasks,c.settings.info,at:c.now)) / \(c.settings.info.weeklyGoal) 项",24,470,8,752,10)
     }
     func todos(_ x:CGFloat,_ y:CGFloat,_ w:CGFloat,_ h:CGFloat,_ title:String="待办清单",_ timeline:Bool=false,_ limit:Int=6){
         text(title,x,y,23,w-70,32,true);text("\(active.count) 项",x+w-55,y+5,15,55)
@@ -120,17 +120,30 @@ private struct Painter {
         let cards=c.settings.info.cards
         for slot in 0..<2 {
             let key=slot<cards.count ? cards[slot]:(slot==0 ? "nextEvent":"outdoor")
-            let title:String,body:String
+            var title:String,body:String
+            if key=="plant" {let y:CGFloat=slot==0 ? 120:266;let count=InformationLogic.weekCount(c.tasks,c.settings.info,at:c.now);text("生长小盆栽",x,y,13,width);rule(x,y+27,width);text("\(count) / \(c.settings.info.weeklyGoal)",x,y+45,25,width-86,38,true);text(c.settings.info.sharedCompletions==nil ? "本机本周":"共享本周",x,y+83,13,width-86);plant(x+width-82,y+37,InformationLogic.plantStage(count,c.settings.info.weeklyGoal));continue}
             switch key {
+            case "habits":title="习惯打卡";body=(c.settings.info.habits ?? []).map{($0.days.contains(dateText(c.now,"yyyy-MM-dd")) ? "✓ ":"○ ")+$0.title}.joined(separator:"\n");if body.isEmpty{body="先添加三个小习惯"}
+            case "plugin":title=c.settings.info.plugin?.name ?? "数据插件";body=c.settings.info.plugin?.display(at:c.now) ?? "先在共享服务选择插件"
+            case "commute":title="通勤建议";body=c.commute.map{c.now.timeIntervalSince($0.fetched)<900 ? $0.text:"路况已过期，请更新"} ?? "先配置通勤路线"
+            case "inspiration":title="每日灵感";body=["今天，先做好一件事。","给重要的事留出时间。","慢一点，也在往前。","专注当下的一小步。","让桌面和心情都留白。","完成比完美更有力量。","休息也是今天的安排。"][((WorkSchedule.calendar.ordinality(of:.day,in:.year,for:c.now) ?? 1)%7)]
+            case "status":title="办公状态";body=(c.settings.info.deskStatus ?? "专注中")+"\n"+(c.settings.info.statusNote ?? "请稍后联系")
             case "nextEvent":title="下一场日程";body=c.nextEvent?.summary(at:c.now) ?? c.calendarStatus
             case "outdoor":title="出门天气";body=InformationLogic.outdoor(c.weather,at:c.now)
             case "countdown":title="重要的日子";body=InformationLogic.nearest(c.settings.info.dates,at:c.now).map{InformationLogic.countdown($0,at:c.now)} ?? "在 Mac 添加重要日期"
-            case "week":title="本周进度";body="已完成 \(InformationLogic.weekCount(c.tasks,at:c.now)) 项\n本周目标 \(c.settings.info.weeklyGoal) 项"
+            case "week":title="本周进度";body="已完成 \(InformationLogic.weekCount(c.tasks,c.settings.info,at:c.now)) 项\n本周目标 \(c.settings.info.weeklyGoal) 项"
             default:title="桌面小纸条";body=c.settings.note
             }
             note(x,slot==0 ? 120:266,width,136,title,body)
         }
     }
+    func plant(_ x:CGFloat,_ y:CGFloat,_ stage:Int){
+        NSColor.black.setStroke();let pot=NSBezierPath();pot.lineWidth=2;pot.move(to:NSPoint(x:x+14,y:y+61));pot.line(to:NSPoint(x:x+59,y:y+61));pot.line(to:NSPoint(x:x+53,y:y+84));pot.line(to:NSPoint(x:x+20,y:y+84));pot.close();pot.stroke()
+        if stage==0{NSBezierPath(ovalIn:NSRect(x:x+31,y:y+52,width:10,height:6)).stroke();return}
+        let stem=NSBezierPath();stem.lineWidth=2;stem.move(to:NSPoint(x:x+36,y:y+61));stem.line(to:NSPoint(x:x+36,y:y+42-CGFloat(stage)*6));stem.stroke()
+        for i in 0..<stage{let at=y+47-CGFloat(i)*8;let left=i%2==0;let leaf=NSBezierPath();leaf.lineWidth=2;leaf.move(to:NSPoint(x:x+36,y:at));leaf.curve(to:NSPoint(x:x+(left ? 13:60),y:at-7),controlPoint1:NSPoint(x:x+(left ? 9:63),y:at-23),controlPoint2:NSPoint(x:x+(left ? 9:63),y:at-23));leaf.curve(to:NSPoint(x:x+36,y:at),controlPoint1:NSPoint(x:x+(left ? 20:53),y:at+1),controlPoint2:NSPoint(x:x+(left ? 20:53),y:at+1));leaf.stroke()}
+    }
+    func landscape(_ x:CGFloat,_ y:CGFloat,_ w:CGFloat,_ h:CGFloat){NSColor.black.setStroke();NSBezierPath(ovalIn:NSRect(x:x+w*0.79-14,y:y+h*0.24-14,width:28,height:28)).stroke();for layer in 0..<3{let ridge=NSBezierPath();ridge.move(to:NSPoint(x:x,y:y+h));for i in 0...8{let xx=x+CGFloat(i)*w/8;let yy=y+h*(0.42+CGFloat(layer)*0.18)+sin(CGFloat(i)*1.7+CGFloat(layer)+CGFloat(WorkSchedule.calendar.component(.month,from:c.now))*0.3)*h*0.17;ridge.line(to:NSPoint(x:xx,y:yy))};ridge.line(to:NSPoint(x:x+w,y:y+h));ridge.stroke()}}
     func work(){
         header();let layout=c.settings.layout
         switch layout {
@@ -181,11 +194,12 @@ private struct Painter {
         text(dateText(c.now,"EEEE"),24,347,20,270)
         weatherLine(24,405,280)
         rule(316,118,344,true)
-        text(dateText(c.now,"yyyy / MM"),346,116,24,430,40,true)
+        let illustrated=c.settings.info.artwork == true
+        if illustrated{landscape(346,118,430,115);text(["冬山藏雪","春山初醒","夏山听雨","秋山有信"][(WorkSchedule.calendar.component(.month,from:c.now)%12)/3]+" · 内置插画",346,240,12,430,20)}else{text(dateText(c.now,"yyyy / MM"),346,116,24,430,40,true)}
         var cal=Calendar(identifier:.gregorian);cal.timeZone=TimeZone(identifier:"Asia/Shanghai")!;let components=cal.dateComponents([.year,.month],from:c.now);let first=cal.date(from:components)!;let offset=(cal.component(.weekday,from:first)+5)%7;let days=cal.range(of:.day,in:.month,for:first)!
-        for (i,day) in ["一","二","三","四","五","六","日"].enumerated(){text(day,346+CGFloat(i)*62,163,15,58)}
-        for day in days {let position=offset+day-1;let x=346+CGFloat(position%7)*62;let y=202+CGFloat(position/7)*35
-            if day==cal.component(.day,from:c.now){outline(x-6,y-3,43,31)}
+        for (i,day) in ["一","二","三","四","五","六","日"].enumerated(){text(day,346+CGFloat(i)*62,illustrated ? 269:163,15,58)}
+        for day in days {let position=offset+day-1;let x=346+CGFloat(position%7)*62;let y=(illustrated ? 300:202)+CGFloat(position/7)*(illustrated ? 20:35)
+            if day==cal.component(.day,from:c.now){outline(x-6,y-2,43,illustrated ? 22:31)}
             text("\(day)",x,y,18,50,23,day==cal.component(.day,from:c.now))
             if let date=cal.date(byAdding:.day,value:day-1,to:first),let marker=CalendarData.marker(date){text(marker,x+28,y+4,8,16,16)}
         }

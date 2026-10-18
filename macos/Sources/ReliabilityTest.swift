@@ -6,10 +6,11 @@ import Foundation
         defer{try? FileManager.default.removeItem(at:directory)}
         var reads=0,sends=0,failSend=false,fullFlags:[Bool]=[]
         var remoteLayout="mac.focus.red-v2"
+        var remoteTasks:[DeviceState.Item]=[.init(id:"device-old",title:"Old device task",due:nil)]
         let transport=DeviceTransport(state:{_,_ in
             reads+=1
-            return DeviceState(tasks:[.init(id:"device-old",title:"Old device task",due:nil)],local_mode:true,needs_full:false,layout_id:remoteLayout,external_layout:true,baseline_ready:true)
-        },send:{_,_,_,_,_,_,full in
+            return DeviceState(tasks:remoteTasks,local_mode:true,needs_full:false,layout_id:remoteLayout,external_layout:true,baseline_ready:true)
+        },send:{_,_,_,_,_,_,full,_ in
             sends+=1;fullFlags.append(full)
             if failSend{throw URLError(.networkConnectionLost)}
         })
@@ -17,7 +18,7 @@ import Foundation
         store.deviceToken="fixture-only";store.settings.deviceURL="http://fixture.invalid";store.settings.layout = .focus;store.settings.autoSync=true
         await store.connectDevice()
         precondition(store.connected && store.tasks.isEmpty,"Reconnect must not resurrect old device tasks")
-        await store.recoverConnection()
+        remoteTasks=[];await store.recoverConnection()
         precondition(sends==1 && !store.syncPending)
         await store.send(full:false)
         precondition(sends==1,"Unchanged frame and metadata should not send twice")
@@ -26,15 +27,20 @@ import Foundation
         precondition(!store.connected && store.syncPending && !store.isSending)
         failSend=false;await store.connectDevice();await store.recoverConnection()
         precondition(store.connected && !store.syncPending && sends==3)
-        remoteLayout="phone-layout";await store.connectDevice();let count=sends
+        remoteLayout="mac.focus.red-v2.phone";await store.connectDevice();let count=sends
         await store.recoverConnection()
         precondition(sends==count && store.syncPending,"Reconnect must not overwrite phone layout")
         precondition(fullFlags.allSatisfy{!$0},"Recovery must never silently full refresh")
+        precondition(store.requiresLayoutApplication && store.phoneOwnsScreen && store.syncStatus.contains("手机控制"))
+        await store.send(full:false)
+        precondition(sends==count && store.syncStatus.contains("接管并同步"),"Retry must explain ownership rather than silently do nothing")
+        await store.applyLayout()
+        precondition(sends==count+1 && fullFlags.last==true && !store.requiresLayoutApplication && !store.syncPending,"Explicit application restores Mac control")
         precondition(ConnectionRecovery.delay(1)==5 && ConnectionRecovery.delay(6)==60)
         precondition(ConnectionRecovery.transient(URLError(.timedOut)))
         precondition(!ConnectionRecovery.transient(DeskError(message:"wrong token")))
         var deliveredTitles:[[String]]=[]
-        let queued=DeskStore(dataDirectory:directory.appendingPathComponent("queue"),startServices:false,transport:DeviceTransport(state:transport.state,send:{_,_,_,tasks,_,_,_ in
+        let queued=DeskStore(dataDirectory:directory.appendingPathComponent("queue"),startServices:false,transport:DeviceTransport(state:transport.state,send:{_,_,_,tasks,_,_,_,_ in
             deliveredTitles.append(tasks.map{$0.title})
             try await Task.sleep(nanoseconds:30_000_000)
         }))

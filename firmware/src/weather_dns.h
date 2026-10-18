@@ -1,0 +1,7 @@
+#pragma once
+#include <stdint.h>
+#include <stddef.h>
+inline bool weatherPublicIP(const uint8_t* p){if(p[0]==0||p[0]==10||p[0]==127||p[0]>=224||(p[0]==169&&p[1]==254)||(p[0]==172&&p[1]>=16&&p[1]<=31)||(p[0]==192&&(p[1]==168||p[1]==0))||(p[0]==100&&p[1]>=64&&p[1]<=127)||(p[0]==198&&(p[1]==18||p[1]==19||p[1]==51))||(p[0]==203&&p[1]==0&&p[2]==113))return false;return true;}
+inline uint16_t weatherU16(const uint8_t* p){return uint16_t(p[0])<<8|p[1];}
+inline bool weatherSkipDNSName(const uint8_t* p,size_t n,size_t& at){unsigned labels=0;while(at<n&&++labels<128){uint8_t c=p[at++];if(c==0)return true;if((c&0xc0)==0xc0){if(at>=n)return false;size_t target=((c&0x3f)<<8)|p[at++];return target<n;}if(c>63||at+c>n)return false;at+=c;}return false;}
+inline bool weatherParseDNS(const uint8_t* p,size_t n,uint16_t id,uint8_t* out){if(n<12||weatherU16(p)!=id||(p[2]&0x80)==0||(p[2]&0x7a)!=0||(p[3]&15)!=0||weatherU16(p+4)!=1||weatherU16(p+6)>32)return false;size_t at=12;if(!weatherSkipDNSName(p,n,at)||at+4>n||weatherU16(p+at)!=1||weatherU16(p+at+2)!=1)return false;at+=4;for(unsigned i=0;i<weatherU16(p+6);i++){if(!weatherSkipDNSName(p,n,at)||at+10>n)return false;uint16_t type=weatherU16(p+at),klass=weatherU16(p+at+2),length=weatherU16(p+at+8);at+=10;if(at+length>n)return false;if(type==1&&klass==1&&length==4&&weatherPublicIP(p+at)){for(int j=0;j<4;j++)out[j]=p[at+j];return true;}at+=length;}return false;}

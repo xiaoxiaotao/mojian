@@ -10,6 +10,12 @@ struct DeskTask: Codable, Identifiable, Equatable {
     var done = false
     var completedAt: Date?
     var pinned:Bool? = nil
+    var repeatRule:String? = nil
+    var repeatSeries:String? = nil
+    var repeatDay:Int? = nil
+    var nextID:String? = nil
+    var nextKey:String? = nil
+    var skipped:Bool? = nil
     var overdue: Bool { !done && (due.map { $0 < Date() } ?? false) }
 }
 enum DeskLayout: String, Codable, CaseIterable, Identifiable {

@@ -11,14 +11,18 @@ import org.json.JSONObject;
 /** One foreground discovery/read transaction. No credentials are read over BLE. */
 final class BleDiscovery {
     static final UUID SERVICE=UUID.fromString("7f510001-8be5-4b2c-a47f-87c7e72e7050");
+    static final UUID PROVISION=UUID.fromString("7f510004-8be5-4b2c-a47f-87c7e72e7050");
+    byte[] wifiPayload;int wifiOffset=0;boolean wifiStarted=false,wifiFinal=false;
     static final UUID ENDPOINT=UUID.fromString("7f510003-8be5-4b2c-a47f-87c7e72e7050");
     interface Listener { void status(String text); void found(String address); }
     final Activity activity; final Listener listener; final Handler handler=new Handler(Looper.getMainLooper());
     BluetoothLeScanner scanner; BluetoothGatt gatt; boolean active=false,connecting=false; int reads=0;
     final Runnable timeout=()->finish("未找到可连接的工作台；请靠近设备并重试，刷屏期间蓝牙会暂时停止");
     BleDiscovery(Activity a,Listener l){activity=a;listener=l;}
-    void start(){
-        close();active=true;connecting=false;reads=0;
+    void start(){begin(null);}
+    void provision(String ssid,String password)throws Exception{byte[] name=ssid.getBytes(StandardCharsets.UTF_8),pass=password.getBytes(StandardCharsets.UTF_8);if(name.length<1||name.length>32||(pass.length>0&&(pass.length<8||pass.length>63)))throw new Exception("Wi-Fi名称1至32字节，密码8至63字节或留空");begin(new JSONObject().put("ssid",ssid).put("password",password).toString().getBytes(StandardCharsets.UTF_8));}
+    void begin(byte[] payload){
+        close();wifiPayload=payload;wifiOffset=0;wifiStarted=false;wifiFinal=false;active=true;connecting=false;reads=0;
         try {
             BluetoothManager manager=(BluetoothManager)activity.getSystemService(Activity.BLUETOOTH_SERVICE);
             BluetoothAdapter adapter=manager==null?null:manager.getAdapter();
@@ -27,7 +31,7 @@ final class BleDiscovery {
             if(scanner==null){finish("蓝牙扫描暂不可用，请重试");return;}
             listener.status("正在查找 Desk-EPD…");
             scanner.startScan(Collections.singletonList(new ScanFilter.Builder().setServiceUuid(new ParcelUuid(SERVICE)).build()),new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build(),scan);
-            handler.postDelayed(timeout,30000);
+            handler.postDelayed(timeout,wifiPayload==null?30000:90000);
         } catch(SecurityException e){finish("需要附近设备权限；旧版安卓还需开启定位服务");}
           catch(Exception e){finish("蓝牙扫描启动失败，请重试");}
     }
@@ -52,13 +56,15 @@ final class BleDiscovery {
             BluetoothGattService service=g.getService(SERVICE);
             BluetoothGattCharacteristic endpoint=service==null?null:service.getCharacteristic(ENDPOINT);
             if(status!=BluetoothGatt.GATT_SUCCESS||endpoint==null){finish("设备固件尚未支持自动地址，请更新固件或手动填写地址");return;}
+            if(wifiPayload!=null){BluetoothGattCharacteristic setup=service.getCharacteristic(PROVISION);if(setup==null){finish("设备需升级以支持蓝牙配网");return;}listener.status("正在通过加密蓝牙发送Wi-Fi配置；如有系统配对窗口请确认");writeWifi(g,setup);return;}
             try{if(!g.readCharacteristic(endpoint))finish("读取地址失败，请重试");}catch(SecurityException e){finish("蓝牙权限不足");}
         });}
+        @Override public void onCharacteristicWrite(BluetoothGatt g,BluetoothGattCharacteristic c,int status){handler.post(()->{if(!active||g!=gatt||!c.getUuid().equals(PROVISION))return;if(status!=BluetoothGatt.GATT_SUCCESS){finish("蓝牙加密写入失败，请完成系统配对后重试");return;}if(wifiFinal){try{g.readCharacteristic(c);}catch(Exception e){finish("读取配网结果失败");}}else writeWifi(g,c);});}
         @Override public void onCharacteristicRead(BluetoothGatt g,BluetoothGattCharacteristic c,int status){read(g,c.getUuid(),c.getValue(),status);}
         @Override public void onCharacteristicRead(BluetoothGatt g,BluetoothGattCharacteristic c,byte[] value,int status){read(g,c.getUuid(),value,status);}
     };
     void read(BluetoothGatt g,UUID id,byte[] value,int status){handler.post(()->{
-        if(!active||g!=gatt||!ENDPOINT.equals(id))return;
+        if(!active||g!=gatt)return;if(PROVISION.equals(id)){String result=value==null?"":new String(value,StandardCharsets.UTF_8);if(!result.equals("accepted")&&!result.equals("connected")){finish(result.equals("press-boot")?"请按住工作台BOOT键两秒，开启五分钟配网窗口后重试":"配网未接受，请检查网络名称与密码后重试");return;}listener.status("配置已接收，正在等待工作台连入Wi-Fi…");if(result.equals("accepted")){if(++reads>25){finish("配网超时，工作台保留原网络");return;}handler.postDelayed(()->readProvisionAgain(g),2000);}else handler.postDelayed(()->readAgain(g),500);return;}if(!ENDPOINT.equals(id))return;
         if(status!=BluetoothGatt.GATT_SUCCESS||value==null){finish("读取地址失败，请重试");return;}
         String payload=new String(value,StandardCharsets.UTF_8).trim();
         android.util.Log.i("DeskBLE","Endpoint read: bytes="+value.length+" payload="+payload);
@@ -66,7 +72,7 @@ final class BleDiscovery {
             String ip=payload.startsWith("{")?new JSONObject(payload).getString("ip"):payload;
             if(ip.equals("0.0.0.0")){
                 listener.status("工作台正在连接Wi-Fi，稍后自动重试…");
-                if(++reads<8){handler.postDelayed(()->readAgain(g),2000);return;}
+                if(++reads<(wifiPayload==null?8:25)){handler.postDelayed(()->readAgain(g),2000);return;}
                 finish("工作台还没有可用IP，请检查它的Wi-Fi连接");return;
             }
             String[] parts=ip.split("\\.",-1);
@@ -79,13 +85,15 @@ final class BleDiscovery {
             finish("蓝牙地址数据不完整，请重试或更新设备固件");
         }
     });}
+    void writeWifi(BluetoothGatt g,BluetoothGattCharacteristic c){try{int n=Math.min(19,wifiPayload.length-wifiOffset);byte[] packet=new byte[n+1];packet[0]=(byte)(!wifiStarted?'S':n==0?'E':'C');System.arraycopy(wifiPayload,wifiOffset,packet,1,n);wifiOffset+=n;wifiStarted=true;wifiFinal=n==0;c.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);c.setValue(packet);if(!g.writeCharacteristic(c))finish("配网写入未开始，请重试");}catch(Exception e){finish("配网发送失败，请重新尝试");}}
+    void readProvisionAgain(BluetoothGatt g){if(!active||g!=gatt)return;try{BluetoothGattService service=g.getService(SERVICE);if(service==null||!g.readCharacteristic(service.getCharacteristic(PROVISION)))finish("读取配网状态失败，请重试");}catch(Exception e){finish("连接中断，工作台保留原配置");}}
     void readAgain(BluetoothGatt g){
         if(!active||g!=gatt)return;
         try{BluetoothGattService service=g.getService(SERVICE);if(service==null||!g.readCharacteristic(service.getCharacteristic(ENDPOINT)))finish("重新读取地址失败，请重试");}catch(Exception e){finish("连接已断开，请重试");}
     }
     void finish(String message){handler.post(()->{if(!active)return;close();listener.status(message);});}
     void close(){
-        active=false;handler.removeCallbacks(timeout);
+        active=false;handler.removeCallbacks(timeout);if(wifiPayload!=null)java.util.Arrays.fill(wifiPayload,(byte)0);wifiPayload=null;
         try{if(scanner!=null)scanner.stopScan(scan);}catch(Exception ignored){}
         scanner=null;
         if(gatt!=null){try{gatt.disconnect();gatt.close();}catch(Exception ignored){}gatt=null;}

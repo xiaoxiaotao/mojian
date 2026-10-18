@@ -17,6 +17,7 @@ if [ -z "$ANDROID_HOME" ]; then printf 'Set ANDROID_HOME to your Android SDK dir
 export ANDROID_HOME
 printf 'sdk.dir=%s\n' "$ANDROID_HOME" > "$TASK_ROOT/android/local.properties"
 set -- -p "$TASK_ROOT/android" :app:assembleDebug --console plain
+if [ "${ANDROID_USE_MIRROR:-0}" = 1 ]; then set -- "$@" --init-script "$TASK_ROOT/tools/mirrors.init.gradle"; fi
 if [ "${ANDROID_OFFLINE:-0}" = 1 ]; then set -- "$@" --offline; fi
 "$GRADLE_BIN" "$@"
 mkdir -p "$TASK_ROOT/dist"

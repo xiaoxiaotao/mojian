@@ -3,8 +3,8 @@ import Foundation
 // Injectable transport keeps reconnect and queue tests independent of real hardware.
 struct DeviceTransport {
     var state:(String,String)async throws->DeviceState = {try await Remote.state($0,$1)}
-    var send:(String,String,Data,[DeskTask],String,String,Bool)async throws->Void = {
-        try await Remote.send(origin:$0,token:$1,frame:$2,tasks:$3,layout:$4,contentKey:$5,full:$6)
+    var send:(String,String,Data,[DeskTask],String,String,Bool,String?)async throws->Void = {
+        try await Remote.send(origin:$0,token:$1,frame:$2,tasks:$3,layout:$4,contentKey:$5,full:$6,expected:$7)
     }
 }
 enum ConnectionRecovery {

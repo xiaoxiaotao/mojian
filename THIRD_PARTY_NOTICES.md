@@ -13,6 +13,15 @@
 | 字体与图标 | Mac当前使用系统字体与SF Symbols；旧服务支持本机中文字体，不分发系统字体文件。项目图片/图标资产的正式商业分发来源仍需核对 |
 | 数据 | Open-Meteo、行情接口、高德分别遵循各自服务条件；开发可用不代表量产可免费调用。天气数据署名与商用托管服务条件分开处理 |
 
+## 设计调研
+
+TRMNL、InkyPi、paperlesspaper、Inkycal等用于研究模块划分和信息呈现；具体链接见调研文档。没有将其整套服务器或固件移植进当前工程。未来复用代码时记录具体版本、路径、修改和适用许可证。
+
 ## 发布边界
 
 仓库不包含真实Key、Wi-Fi密码、个人任务数据库、Agent个人会话、原始现场截图或官方依赖二进制。需要正式销售/分发时，先完成未决来源核验，不把“已上传GitHub”当作商业许可已经确认。
+
+## 自主天气新增资源
+
+- `firmware/src/autonomy_font.h`：由Noto Sans SC少量字形生成的单色像素子集；上游[notofonts/noto-cjk](https://github.com/notofonts/noto-cjk)，SIL Open Font License 1.1全文在`firmware/resources/NotoSansCJK-OFL.txt`。原字体由工具下载到忽略目录，不捆绑系统字体。再生成入口`tools/generate_autonomy_assets.py --font <本地Noto字体路径>`。
+- `firmware/resources/isrg-root-x1.pem`及`isrg-root-x2.pem`：来自[Let's Encrypt官方证书页](https://letsencrypt.org/certificates/)的公开ISRG信任锚；用于验证Open-Meteo HTTPS。不是个人证书或私钥。不关闭证书验证，不在源码保存天气服务私密凭据。

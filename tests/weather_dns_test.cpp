@@ -1,0 +1,4 @@
+#include <cassert>
+#include <vector>
+#include "../firmware/src/weather_dns.h"
+int main(){uint8_t fake[]={198,18,6,194},privateIP[]={192,168,31,1},publicIP[]={5,9,65,197};assert(!weatherPublicIP(fake));assert(!weatherPublicIP(privateIP));assert(weatherPublicIP(publicIP));std::vector<uint8_t> reply={0x12,0x34,0x81,0x80,0,1,0,1,0,0,0,0,3,'a','p','i',10,'o','p','e','n','-','m','e','t','e','o',3,'c','o','m',0,0,1,0,1,0xc0,0x0c,0,1,0,1,0,0,0,60,0,4,5,9,65,197};uint8_t out[4];assert(weatherParseDNS(reply.data(),reply.size(),0x1234,out));assert(out[0]==5&&out[3]==197);assert(!weatherParseDNS(reply.data(),reply.size(),0x9999,out));for(size_t n=0;n<reply.size();n++)assert(!weatherParseDNS(reply.data(),n,0x1234,out));reply[reply.size()-4]=198;reply[reply.size()-3]=18;assert(!weatherParseDNS(reply.data(),reply.size(),0x1234,out));reply[3]=0x83;assert(!weatherParseDNS(reply.data(),reply.size(),0x1234,out));}

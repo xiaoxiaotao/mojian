@@ -5,6 +5,8 @@ import AppKit
     @StateObject private var store=DeskStore()
     init(){
         let args=ProcessInfo.processInfo.arguments
+        if args.contains("--repeat-test"){Task{@MainActor in do{try RepeatTest.run();exit(0)}catch{print("FAIL: repeat contracts");exit(1)}};dispatchMain()}
+        if args.contains("--extension-test"){Task{@MainActor in do{try ExtensionTest.run();exit(0)}catch{print("FAIL: extension contracts");exit(1)}};dispatchMain()}
         if args.contains("--reliability-test"){Task{@MainActor in await ReliabilityTest.run();exit(0)};dispatchMain()}
         if args.contains("--task-management-test"){Task{@MainActor in await TaskManagementTest.run();exit(0)};dispatchMain()}
         if args.contains("--information-test"){InformationTest.run();exit(0)}
@@ -12,7 +14,11 @@ import AppKit
         if let i=args.firstIndex(of:"--render-current"),args.count>i+1 {
             let out=URL(fileURLWithPath:args[i+1]);try! FileManager.default.createDirectory(at:out,withIntermediateDirectories:true)
             let path=FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("MoJian/state.json")
-            let state=try! JSONDecoder().decode(SavedState.self,from:Data(contentsOf:path))
+            var state=try! JSONDecoder().decode(SavedState.self,from:Data(contentsOf:path))
+            if let j=args.firstIndex(of:"--device-tasks"),args.count>j+1 {
+                let remote=try! JSONDecoder().decode(DeviceState.self,from:Data(contentsOf:URL(fileURLWithPath:args[j+1])))
+                state.tasks=remote.tasks.map{DeskTask(id:$0.id ?? UUID().uuidString,title:$0.title,due:$0.due.flatMap{parseISODate($0)},done:false,completedAt:nil)}
+            }
             let image=ScreenRenderer.render(ScreenContent(tasks:state.tasks,settings:state.settings,weather:state.weather,quotes:state.quotes,afterHours:state.afterHours))
             try! ScreenRenderer.blackFrame(ScreenContent(tasks:state.tasks,settings:state.settings,weather:state.weather,quotes:state.quotes,afterHours:state.afterHours)).write(to:out.appendingPathComponent("frame.bin"));try! ScreenRenderer.savePNG(image,to:out.appendingPathComponent("preview.png"));exit(0)
         }
