@@ -14,3 +14,14 @@ enum ConnectionRecovery {
         return e.domain==NSURLErrorDomain && [NSURLErrorTimedOut,NSURLErrorCannotFindHost,NSURLErrorCannotConnectToHost,NSURLErrorNetworkConnectionLost,NSURLErrorNotConnectedToInternet].contains(e.code)
     }
 }
+
+// Discovery identifiers are hints; every response must still match the bound board.
+enum DeviceIdentity {
+    struct Mismatch:LocalizedError {var errorDescription:String?{"此地址不是已绑定的屏幕，请重新发现原设备；更换屏幕需先解除绑定。"}}
+    static func valid(_ id:String)->Bool {id.range(of:"^mojian-[0-9a-f]{12}$",options:.regularExpression) != nil}
+    static func origin(_ id:String)->String? {valid(id) ? "http://"+id+".local":nil}
+    static func verify(_ expected:String?,_ actual:String?)throws {
+        guard let expected,!expected.isEmpty else{return}
+        guard valid(expected),actual==expected else{throw Mismatch()}
+    }
+}

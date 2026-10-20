@@ -7,6 +7,7 @@ struct DeviceState: Decodable {
     var accent_supported:Bool?
     var accent_version_supported:String?
     var content_key:String? = nil
+    var device_id:String? = nil
     var tasks:[Item];var local_mode:Bool;var needs_full:Bool;var layout_id:String?;var external_layout:Bool?;var baseline_ready:Bool?
 }
 enum Remote {
@@ -25,7 +26,7 @@ enum Remote {
         guard let components=URLComponents(string:origin),["http","https"].contains(components.scheme ?? ""),let host=components.host,!host.isEmpty,components.user==nil,components.password==nil,let url=URL(string:path,relativeTo:URL(string:origin)) else {throw DeskError(message:"请填写有效的工作台地址，例如 http://192.168.1.20")};return url.absoluteURL
     }
     static func state(_ origin:String,_ token:String)async throws->DeviceState {
-        let bytes=try await data(deviceURL(origin,"/api/local/state"));return try JSONDecoder().decode(DeviceState.self,from:bytes)
+        let bytes=try await data(deviceURL(origin,"/api/local/state"),timeout:6);return try JSONDecoder().decode(DeviceState.self,from:bytes)
     }
     static func send(origin:String,token:String,frame:Data,tasks:[DeskTask],layout:String,contentKey:String,full:Bool,expected:String?=nil)async throws {
         if full {let state=try await state(origin,token);guard state.accent_version_supported == "mojian-red-v2" else{throw DeskError(message:"设备需升级固定红色布局固件后才能应用，请先更新固件")}}

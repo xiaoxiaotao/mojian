@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+python3 "$(dirname -- "$0")/generate_preset_catalog.py" --check
 TASK_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 APP="$TASK_ROOT/dist/墨间.app/Contents/MacOS/MoJian"
 if [ ! -x "$APP" ]; then printf 'Build the Mac application with tools/build_macos.sh first.\n' >&2; exit 1; fi

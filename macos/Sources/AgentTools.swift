@@ -16,7 +16,7 @@ extension DeskStore {
         switch name {
         case "get_context":return agentContext()
         case "get_weather":
-            do{weather=try await Remote.weather(settings);save();return ["source":"Open-Meteo","city":settings.city,"weather":weather!.text,"temperature":weather!.temperature,"fetched":dateText(weather!.fetched,"yyyy-MM-dd HH:mm")]}catch{return ["error":"天气查询失败，不能把缓存当作实时数据"]}
+            do{weather=try await Remote.weather(settings);weatherFetchFailed=false;save();return ["source":"Open-Meteo","city":settings.city,"weather":weather!.text,"temperature":weather!.temperature,"fetched":dateText(weather!.fetched,"yyyy-MM-dd HH:mm")]}catch{weatherFetchFailed=true;return ["error":"天气查询失败，不能把缓存当作实时数据"]}
         case "get_commute":await refreshCommute();return ["source":"高德驾车路径规划","result":commuteContext(),"available":commute != nil]
         case "list_tasks":observedAgentTasks=Set(active.map{$0.id});return ["tasks":active.map{["id":$0.id,"title":$0.title,"due":$0.due.map{ISO8601DateFormatter().string(from:$0)} as Any? ?? NSNull()]}]
         case "get_memory":return ["preferences":agent.memories.map{$0.text},"commute_reminder_enabled":agent.commuteEnabled]

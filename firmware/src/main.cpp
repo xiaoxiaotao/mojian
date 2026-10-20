@@ -143,6 +143,7 @@ void diagnostic(){
 extern bool autoFetching;
 void overlayAutonomy(uint8_t*,const String&);
 #include "wifi_provision.h"
+#include "device_discovery.h"
 #include "local_portal.h"
 #include "autonomy.h"
 // BLE discovery shares an address only, never credentials.
@@ -181,14 +182,15 @@ void setup(){
  esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 
  pinMode(13,INPUT);pinMode(12,OUTPUT);pinMode(14,OUTPUT);pinMode(27,OUTPUT);digitalWrite(27,HIGH);digitalWrite(12,HIGH);SPI.begin(18,19,23,27);
+ WiFi.onEvent([](WiFiEvent_t event,WiFiEventInfo_t info){if(event==ARDUINO_EVENT_WIFI_STA_DISCONNECTED)Serial.printf("WiFi disconnected reason=%u\n",info.wifi_sta_disconnected.reason);if(event==ARDUINO_EVENT_WIFI_STA_GOT_IP)Serial.printf("WiFi address: %s\n",WiFi.localIP().toString().c_str());});
  beginSavedWifi();configTime(8*3600,0,"ntp.aliyun.com","time.cloudflare.com","pool.ntp.org");
  Serial.printf("WiFi initialized; heap=%u largest=%u\n",ESP.getFreeHeap(),ESP.getMaxAllocHeap());
  startBluetooth();setupLocalPortal();setupAutonomy();Serial.println("Quiet mode: no automatic full refresh");
 }
 void loop(){
- updateProvisioning();handleLocalPortal();
+ updateProvisioning();updateDeviceDiscovery();handleLocalPortal();
  updateAutonomy();updateLocalClock();
- if(Serial.available()&&Serial.read()=='t')diagnostic();
+ if(Serial.available()){char command=Serial.read();if(command=='t')diagnostic();if(command=='b'){bleSuspended=true;NimBLEDevice::deinit(true);WiFi.disconnect(false,false);WiFi.reconnect();Serial.println("BLE paused for WiFi diagnosis; reboot restores BLE");}if(command=='n'){int count=WiFi.scanNetworks();Serial.printf("WiFi scan count=%d\n",count);for(int i=0;i<count;i++)if(WiFi.SSID(i)==WEATHER_WIFI_SSID)Serial.printf("Configured AP signal=%d channel=%d auth=%d\n",WiFi.RSSI(i),WiFi.channel(i),(int)WiFi.encryptionType(i));WiFi.scanDelete();}if(command=='r'){WiFi.disconnect(false,false);WiFi.reconnect();Serial.println("WiFi reconnect requested");}if(command=='s')Serial.printf("Network status=%d IP=%s heap=%u uptime=%lu\n",(int)WiFi.status(),WiFi.localIP().toString().c_str(),ESP.getFreeHeap(),millis());}
  if(WiFi.status()!=WL_CONNECTED){wifiReported=false;delay(1000);return;}
  if(!wifiReported){Serial.printf("WiFi connected with BLE; heap=%u largest=%u\n",ESP.getFreeHeap(),ESP.getMaxAllocHeap());wifiReported=true;}
  if(!lastPoll||millis()-lastPoll>=5000){lastPoll=millis();poll();}delay(20);

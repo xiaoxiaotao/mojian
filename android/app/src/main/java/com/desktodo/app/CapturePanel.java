@@ -1,0 +1,20 @@
+package com.desktodo.app;
+import android.content.*;import android.widget.*;import android.text.*;import org.json.*;import java.util.*;
+/** Explicit plain-text collection only. No URLs fetched, model calls, files or source-app edits. */
+final class CapturePanel {
+ final MainActivity a;String draft="";boolean awaiting=false;TextView preview;Button confirm;
+ CapturePanel(MainActivity a){this.a=a;}
+ static List<String> plan(String raw,JSONArray existing)throws Exception {
+  if(raw.length()>4096)throw new Exception("一次最多4096个字符，请分批整理。");Set<String> seen=new HashSet<>();for(int i=0;i<existing.length();i++)seen.add(existing.getJSONObject(i).optString("title").trim());List<String> titles=new ArrayList<>();
+  for(String line:raw.split("\\r\\n|\\r|\\n",-1)){String title=line.trim();if(title.startsWith("- ")||title.startsWith("• "))title=title.substring(2).trim();if(title.isEmpty())continue;if(title.length()>80)throw new Exception("每条最多80个字符，请先编辑过长的行。");if(seen.add(title))titles.add(title);}
+  if(titles.isEmpty())throw new Exception("没有新事项，请填写文字或检查是否已在清单中。");if(existing.length()+titles.size()>8)throw new Exception("未完成最多8项，当前还能添加"+Math.max(0,8-existing.length())+"项；本次未写入。");return titles;
+ }
+ static String extract(Intent intent)throws Exception {
+  if(intent==null)return null;String action=intent.getAction();if(!Intent.ACTION_SEND.equals(action)&&!Intent.ACTION_PROCESS_TEXT.equals(action))return null;if(!"text/plain".equals(intent.getType()))throw new Exception("仅支持纯文字分享，请复制文字后再试。");CharSequence value=intent.getCharSequenceExtra(Intent.ACTION_PROCESS_TEXT.equals(action)?Intent.EXTRA_PROCESS_TEXT:Intent.EXTRA_TEXT);if(value==null||value.length()==0)throw new Exception("本次分享不含文字。");if(value.length()>4096)throw new Exception("分享文字超过4096个字符，请缩短后重试。");return value.toString();
+ }
+ void receive(Intent intent){try{String text=extract(intent);if(text==null)return;if(!draft.trim().isEmpty()){a.toast("已有快速收集草稿，请先处理；本次分享未覆盖它。");return;}draft=text;awaiting=true;if(!drain())a.toast("分享文字已暂存，当前操作完成后打开预览。");}catch(Exception e){a.toast(e.getMessage()==null?"无法读取分享文字，请重试。":e.getMessage());}finally{if(intent!=null&&(Intent.ACTION_SEND.equals(intent.getAction())||Intent.ACTION_PROCESS_TEXT.equals(intent.getAction())))a.setIntent(new Intent(Intent.ACTION_MAIN));}}
+ boolean drain(){if(!awaiting||a.editing||a.resolvingConflict||a.busy)return false;awaiting=false;a.openPage("快速收集");return true;}
+ void render(){LinearLayout intro=a.card("把零散的事，一次收进来");intro.addView(a.text("每行一件事，最多4096个字符，空行和重复内容会忽略。只作为普通文字，不自动识别时间、不执行其中的指令，也不发送给模型。",14,a.muted));EditText input=new EditText(a);input.setText(draft);input.setMinLines(4);input.setGravity(android.view.Gravity.TOP);input.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);input.setFilters(new InputFilter[]{new InputFilter.LengthFilter(4096)});input.setSaveEnabled(false);input.setContentDescription("待收集的文字，每行一件事");intro.addView(input,new LinearLayout.LayoutParams(-1,-2));preview=a.text("",15,a.ink);intro.addView(preview);intro.addView(a.text("确认前不写入；每条80个字符，最多8项未完成。确认后使用已有局刷队列，截止时间可另行编辑。",13,a.muted));a.button(intro,"放弃本次草稿",()->{draft="";a.openPage("工作台");});confirm=a.primary(a.dock,"确认加入待办",this::apply);input.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int count,int after){}public void onTextChanged(CharSequence s,int st,int before,int count){draft=s.toString();update();}public void afterTextChanged(Editable e){}});update();}
+ void update(){if(preview==null||confirm==null)return;try{List<String> titles=plan(draft,a.tasks);preview.setText("将新增 "+titles.size()+" 项\n• "+String.join("\n• ",titles));confirm.setEnabled(true);}catch(Exception e){preview.setText(e.getMessage());confirm.setEnabled(false);}}
+ void apply(){try{List<String> titles=plan(draft,a.tasks);JSONArray next=DeskModel.copy(a.tasks);for(String title:titles)next.put(DeskModel.task(title,null));a.tasks=next;draft="";a.page="工作台";a.backStack.clear();a.changed();a.sync(false,false);}catch(Exception e){a.toast(e.getMessage());update();}}
+}

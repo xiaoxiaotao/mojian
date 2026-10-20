@@ -1,6 +1,14 @@
 # 文档索引
 
+- [历史记录查找](HISTORY_SEARCH.md)
+- [设备发现与恢复](DEVICE_DISCOVERY.md)
 - [开发指南](DEVELOPMENT.md)
+- [测试与兼容性](TESTING.md)
+- [截止时间快捷选项](DEADLINE_SHORTCUTS.md)
+- [快速收集](QUICK_CAPTURE.md)
+- [每日收尾](DAILY_REVIEW.md)
+- [连接与数据状态](CONNECTION_AND_DATA.md)
+- [桌面方案](DESKTOP_PRESETS.md)
 - [架构与刷新](ARCHITECTURE.md)
 - [配置、自主更新与重复待办](SETUP_AND_AUTONOMY.md)
 - [场景与卡片](SCENES.md)

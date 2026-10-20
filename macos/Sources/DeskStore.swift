@@ -22,7 +22,7 @@ struct WorkSchedule {
     @Published var completionUndo:TaskCompletionUndo?
     private var reminderHistory:[String:Date]=[:]
     private var notificationGeneration:[String:UUID]=[:]
-    @Published var settings=Preferences(){didSet{if settings.homeAddress != oldValue.homeAddress || settings.workAddress != oldValue.workAddress || settings.city != oldValue.city {commute=nil;lastCommute = .distantPast};save()}}
+    @Published var settings=Preferences(){didSet{if settings.deviceURL != oldValue.deviceURL{lastDeviceContact=nil;lastSync=nil;healthMessage=""};if settings.homeAddress != oldValue.homeAddress || settings.workAddress != oldValue.workAddress || settings.city != oldValue.city {commute=nil;lastCommute = .distantPast};save()}}
     @Published var weather:WeatherSnapshot?
     @Published var quotes:[StockQuote]=[]
     @Published var commute:CommuteSnapshot?
@@ -52,6 +52,12 @@ struct WorkSchedule {
     @Published var brief=""
     @Published var messages:[AssistantLine]=[]
     @Published var focusEnd:Date?
+    @Published var lastDeviceContact:Date?
+    @Published var weatherFetchFailed=false
+    @Published var stockFetchFailed=false
+    @Published var commuteFetchFailed=false
+    @Published var healthBusy=false
+    @Published var healthMessage=""
     @Published var lastSync:Date?
     @Published var storageError=""
     @Published var deviceToken=""
@@ -153,13 +159,27 @@ struct WorkSchedule {
             if !settings.deviceURL.isEmpty{await connectDevice()}
         }
     }
+    func forgetDeviceBinding(){guard !isSending,!isConnecting,!isReadingDevice else{return};settings.deviceID=nil;settings.deviceURL="";connected=false;taskBaseline=nil;try? FileManager.default.removeItem(at:directory.appendingPathComponent("task-baseline.json"));lastFrame=nil;lastContentKey=nil;syncStatus="已解除屏幕绑定，本机内容保留；请发现新屏幕后连接";status=syncStatus}
     func start(){Task{if !settings.deviceURL.isEmpty{await connectDevice();if !connected{try? await Task.sleep(nanoseconds:2_000_000_000);await connectDevice()}};await refreshFeeds();if settings.scheduleEnabled{await checkSchedule()}}}
     func connectDevice(importTasks:Bool=false)async {
         guard !isConnecting,!isSending else{return}
+        let contactDestination=settings.deviceURL
+        let expectedIdentity=settings.deviceID
         isConnecting=true;syncStatus="正在连接工作台…"
         defer{isConnecting=false}
         do {
-            let state=try await transport.state(settings.deviceURL,deviceToken)
+            var destination=contactDestination
+            let state:DeviceState
+            do {let observed=try await transport.state(destination,deviceToken);try DeviceIdentity.verify(expectedIdentity,observed.device_id);state=observed}
+            catch {
+                guard let stable=DeviceIdentity.origin(expectedIdentity ?? ""),stable != destination else{throw error}
+                syncStatus="正在局域网寻找已绑定屏幕…"
+                let observed=try await transport.state(stable,deviceToken);try DeviceIdentity.verify(expectedIdentity,observed.device_id);state=observed;destination=stable
+            }
+            guard settings.deviceURL==contactDestination,settings.deviceID==expectedIdentity else{return}
+            if let id=state.device_id,DeviceIdentity.valid(id){settings.deviceID=id}
+            if destination != contactDestination{settings.deviceURL=destination}
+            lastDeviceContact=Date()
             connected=true;reconnectFailures=0;mayReconnect=true;syncRetryAllowed=true;syncPending=true
             deviceNeedsFull = !(state.baseline_ready ?? !state.needs_full) || !state.local_mode || state.external_layout != true
             appliedSignature=state.layout_id ?? ""
@@ -170,7 +190,7 @@ struct WorkSchedule {
             syncStatus=deviceNeedsFull || appliedSignature != signature ? layoutBlockedMessage:"已连接 · 可局部同步"
             status=syncStatus
         }catch {
-            connected=false;mayReconnect=ConnectionRecovery.transient(error);reconnectFailures+=1
+            connected=false;mayReconnect=ConnectionRecovery.transient(error) || error is DeviceIdentity.Mismatch;reconnectFailures+=1
             nextReconnect=Date().addingTimeInterval(ConnectionRecovery.delay(reconnectFailures))
             syncStatus=mayReconnect ? "工作台暂时离线，将自动重连；内容已保存在 Mac":"连接失败："+error.localizedDescription
             status=syncStatus
@@ -216,6 +236,8 @@ struct WorkSchedule {
         isSending=true
         do {
             let latest=try await transport.state(settings.deviceURL,deviceToken)
+            try DeviceIdentity.verify(settings.deviceID,latest.device_id)
+            lastDeviceContact=Date()
             guard full || latest.layout_id==signature else{appliedSignature=latest.layout_id ?? "";throw DeskError(message:layoutBlockedMessage)}
             if let baseline=taskBaseline {let merged=try TaskReconcile.merge(base:baseline,local:tasks,remote:TaskReconcile.items(latest));tasks=tasks.filter{$0.done && !Set(merged.map{$0.id}).contains($0.id)}+merged}
             else if !TaskReconcile.items(latest).isEmpty && !TaskReconcile.equal(tasks,TaskReconcile.items(latest)){throw DeskError(message:"首次同步清单不同，请先在设备设置中读取设备清单，未覆盖设备")}
@@ -227,7 +249,7 @@ struct WorkSchedule {
             if full || frame != lastFrame || contentKey != lastContentKey {
                 syncStatus=full ? "正在应用布局，约20秒…":"正在局部同步…";status=syncStatus
                 try await transport.send(settings.deviceURL,deviceToken,frame,sendingTasks,sendingSignature,contentKey,full,latest.content_key)
-                lastFrame=frame;lastContentKey=contentKey;appliedSignature=sendingSignature;deviceNeedsFull=false;lastSync=Date();rememberTasks(sendingTasks)
+                lastFrame=frame;lastContentKey=contentKey;appliedSignature=sendingSignature;deviceNeedsFull=false;lastSync=Date();lastDeviceContact=Date();rememberTasks(sendingTasks)
                 if full{settings.autoSync=true}
             }
             syncRetryAllowed=true;syncPending=pendingSync;syncStatus="已同步到墨水屏 · "+dateText(lastSync ?? Date(),"HH:mm");status=syncStatus
@@ -246,7 +268,7 @@ struct WorkSchedule {
     func rememberTasks(_ value:[DeskTask]){taskBaseline=TaskReconcile.active(value);if let bytes=try? JSONEncoder().encode(taskBaseline){try? bytes.write(to:directory.appendingPathComponent("task-baseline.json"),options:.atomic)}}
     func readDeviceChanges()async {
         guard connected,!isSending,!isConnecting,!isReadingDevice,Date().timeIntervalSince(lastDeviceCheck)>=5 else{return};lastDeviceCheck=Date();isReadingDevice=true;defer{isReadingDevice=false};let local=tasks,destination=settings.deviceURL
-        do{let latest=try await transport.state(destination,deviceToken);guard tasks==local,!isSending,settings.deviceURL==destination else{return};let remoteTasks=TaskReconcile.items(latest);if let baseline=taskBaseline{let merged=try TaskReconcile.merge(base:baseline,local:tasks,remote:remoteTasks);if !TaskReconcile.equal(tasks,merged){tasks=tasks.filter{$0.done && !Set(merged.map{$0.id}).contains($0.id)}+merged;lastFrame=nil;lastContentKey=nil};rememberTasks(remoteTasks)};appliedSignature=latest.layout_id ?? "";deviceNeedsFull = !(latest.baseline_ready ?? !latest.needs_full) || !latest.local_mode || latest.external_layout != true;if requiresLayoutApplication{syncStatus=layoutBlockedMessage}}catch{syncStatus=error.localizedDescription;syncRetryAllowed=false}
+        do{let latest=try await transport.state(destination,deviceToken);guard settings.deviceURL==destination else{return};try DeviceIdentity.verify(settings.deviceID,latest.device_id);lastDeviceContact=Date();guard tasks==local,!isSending else{return};let remoteTasks=TaskReconcile.items(latest);if let baseline=taskBaseline{let merged=try TaskReconcile.merge(base:baseline,local:tasks,remote:remoteTasks);if !TaskReconcile.equal(tasks,merged){tasks=tasks.filter{$0.done && !Set(merged.map{$0.id}).contains($0.id)}+merged;lastFrame=nil;lastContentKey=nil};rememberTasks(remoteTasks)};appliedSignature=latest.layout_id ?? "";deviceNeedsFull = !(latest.baseline_ready ?? !latest.needs_full) || !latest.local_mode || latest.external_layout != true;if requiresLayoutApplication{syncStatus=layoutBlockedMessage}}catch{if ConnectionRecovery.transient(error) || error is DeviceIdentity.Mismatch{lastDeviceContact=nil;connected=false;mayReconnect=true;reconnectFailures+=1;nextReconnect=Date().addingTimeInterval(ConnectionRecovery.delay(reconnectFailures));syncStatus="连接中断，正在找回已绑定屏幕；本机内容已保留"}else{syncStatus=error.localizedDescription};syncRetryAllowed=false}
     }
     func recoverConnection()async {
         guard !settings.deviceURL.isEmpty,!isSending,!isConnecting else{return}
@@ -311,12 +333,12 @@ struct WorkSchedule {
 
     func refreshFeeds(forceWeather:Bool=false)async {
         guard !feedBusy else{return};feedBusy=true;lastFeed=Date();var errors:[String]=[]
-        do{if forceWeather||weather==nil||weather?.hours==nil||Date().timeIntervalSince(weather!.fetched)>1800{weather=try await Remote.weather(settings)}}catch{errors.append(error.localizedDescription)}
-        do{quotes=try await Remote.stocks(settings.stocks)}catch{errors.append(error.localizedDescription)}
+        do{if forceWeather||weather==nil||weather?.hours==nil||Date().timeIntervalSince(weather!.fetched)>1800{weather=try await Remote.weather(settings);weatherFetchFailed=false}}catch{weatherFetchFailed=true;errors.append(error.localizedDescription)}
+        do{quotes=try await Remote.stocks(settings.stocks);stockFetchFailed=false}catch{stockFetchFailed=true;errors.append(error.localizedDescription)}
         feedStatus=errors.isEmpty ? "天气与行情已更新 · "+dateText(Date(),"HH:mm"):errors.joined(separator:"；");feedBusy=false;save()
     }
     func refreshCommute()async {
-        lastCommute=Date();do{commute=try await Remote.commute(settings,key:amapKey);trafficStatus="高德 · "+dateText(Date(),"HH:mm")+" · "+(commute?.trafficSummary ?? "路况详情未返回")}catch{commute=nil;trafficStatus=error.localizedDescription}
+        lastCommute=Date();do{commute=try await Remote.commute(settings,key:amapKey);commuteFetchFailed=false;trafficStatus="高德 · "+dateText(Date(),"HH:mm")+" · "+(commute?.trafficSummary ?? "路况详情未返回")}catch{commuteFetchFailed=true;commute=nil;trafficStatus=error.localizedDescription}
     }
     func pinTask(_ id:String){
         guard let i=tasks.firstIndex(where:{$0.id==id && !$0.done}) else{return}

@@ -113,7 +113,7 @@ void setupLocalPortal(){
  if(localMode&&!localReadSnapshot(true)){localMode=false;localMetadata="{\"tasks\":[]}";}
  deviceWeb.on("/",HTTP_GET,[]{deviceWeb.sendHeader("Cache-Control","no-store");deviceWeb.send_P(200,"text/html; charset=utf-8",LOCAL_PAGE);});
  deviceWeb.on("/api/local/state",HTTP_GET,[]{
-  JsonDocument doc;deserializeJson(doc,localMetadata);doc["local_mode"]=localMode;doc["needs_full"]=!localMode||!hasBase;doc["external_layout"]=localExternal;doc["layout_id"]=localLayoutID;doc["baseline_ready"]=hasBase;doc["storage_ready"]=storageReady;doc["accent_supported"]=true;doc["accent_version_supported"]="mojian-red-v2";doc["conditional_commit"]=true;doc["metadata_limit"]=8192;doc["provision_supported"]=true;doc["provision_open"]=provisionOpen();doc["autonomy_supported"]=true;
+  JsonDocument doc;deserializeJson(doc,localMetadata);doc["local_mode"]=localMode;doc["needs_full"]=!localMode||!hasBase;doc["external_layout"]=localExternal;doc["layout_id"]=localLayoutID;doc["baseline_ready"]=hasBase;doc["storage_ready"]=storageReady;doc["accent_supported"]=true;doc["accent_version_supported"]="mojian-red-v2";doc["conditional_commit"]=true;doc["metadata_limit"]=8192;doc["provision_supported"]=true;doc["provision_open"]=provisionOpen();doc["autonomy_supported"]=true;doc["device_id"]=deviceIdentity();doc["discovery_host"]=deviceIdentity()+".local";
   String body;serializeJson(doc,body);deviceWeb.sendHeader("Cache-Control","no-store");deviceWeb.send(200,"application/json; charset=utf-8",body);
  });
  deviceWeb.on("/api/local/base",HTTP_GET,[]{

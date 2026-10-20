@@ -1,6 +1,6 @@
 # 墨间 Mac 客户端
 
-原生SwiftUI客户端，当前0.4.0。支持Apple Silicon、macOS14+。构建及独立克隆步骤见[开发指南](../docs/DEVELOPMENT.md)。
+原生SwiftUI客户端，当前0.4.5。支持Apple Silicon、macOS14+。构建及独立克隆步骤见[开发指南](../docs/DEVELOPMENT.md)。
 
 ## 使用
 
@@ -24,3 +24,17 @@
 从仓库根执行`sh tools/test.sh`。CLI包含`--self-test`、`--reliability-test`、`--information-test <输出目录>`、`--task-management-test`。不需要真实Key；示例输出不代表用户生产内容。
 
 当前为开发签名应用，尚未完成正式公证与长期验证。详见[验证状态](../docs/TESTING.md)。
+
+Mac 0.4.1 在「布局空间」加入六套用途方案与当前数据预览；确认应用才全刷。未填写的模板字段保留已有小纸条、周目标和状态。详见[桌面方案](../docs/DESKTOP_PRESETS.md)。
+
+Mac 0.4.2 新增侧栏「连接与数据」及底部入口，分别查看设备响应、待同步/回执与数据缓存；只读检查不会写屏。见[连接与数据](../docs/CONNECTION_AND_DATA.md)。
+
+Mac 0.4.3：工作台「每日收尾」只读整理本机今日完成、逾期和后续安排，可复制摘要。见[使用说明](../docs/DAILY_REVIEW.md)。
+
+Mac 0.4.4：工作台「批量收集」可粘贴多行，先预览、去重并确认，整批加入现有待办；取消不写入。见[快速收集](../docs/QUICK_CAPTURE.md)。
+
+Mac 0.4.5：新增和编辑待办提供截止时间快捷选项；按北京时间，保存前不改事项。见[说明](../docs/DEADLINE_SHORTCUTS.md)。
+
+Mac 0.4.6：工作台「查找历史记录」支持文字搜索、完成/跳过筛选及确认恢复。见[历史查找](../docs/HISTORY_SEARCH.md)。
+
+Mac 0.4.7：首次连上新版固件后记住设备ID，地址失效时用固定局域网名称找回并核验；「设备与设置」可明确解除绑定。见[设备发现与恢复](../docs/DEVICE_DISCOVERY.md)。

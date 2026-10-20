@@ -27,6 +27,7 @@ enum DeskLayout: String, Codable, CaseIterable, Identifiable {
 }
 struct Preferences: Codable, Equatable {
     var deviceURL = ""
+    var deviceID:String? = nil
     var layout: DeskLayout = .focus
     var city = "苏州"
     var latitude = 31.30

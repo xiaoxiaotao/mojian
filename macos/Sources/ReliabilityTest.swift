@@ -61,6 +61,26 @@ import Foundation
         try? await Task.sleep(nanoseconds:10_000_000);bridge.close()
         do{_=try await request.value;preconditionFailure("Expected cancellation")}
         catch{precondition(error.localizedDescription.contains("停止"))}
+        do {
+            let id="mojian-012345abcdef",other="mojian-abcdef012345"
+            precondition(DeviceIdentity.valid(id) && !DeviceIdentity.valid("mojian-x.local/attack"))
+            precondition(DeviceIdentity.origin(id)=="http://mojian-012345abcdef.local")
+            do{try DeviceIdentity.verify(id,other);preconditionFailure("Wrong board accepted")}catch{}
+            do{try DeviceIdentity.verify(id,nil);preconditionFailure("Missing board identity accepted")}catch{}
+            var attempted:[String]=[]
+            let bound=DeskStore(dataDirectory:directory.appendingPathComponent("discovery"),startServices:false,transport:DeviceTransport(state:{address,_ in
+                attempted.append(address)
+                return DeviceState(device_id:address.contains(".local") ? id:other,tasks:[],local_mode:true,needs_full:false,layout_id:"mac.focus.red-v2.phone",external_layout:true,baseline_ready:true)
+            },send:{_,_,_,_,_,_,_,_ in preconditionFailure("Discovery must not send") }))
+            bound.settings.deviceURL="http://192.0.2.1";bound.settings.deviceID=id
+            bound.tasks=[DeskTask(id:"local-draft",title:"Keep local draft")]
+            await bound.connectDevice()
+            precondition(bound.connected && bound.settings.deviceURL==DeviceIdentity.origin(id) && attempted.count==2)
+            precondition(bound.tasks.map{$0.id}==["local-draft"] && bound.phoneOwnsScreen,"Discovery cannot import or take over")
+            let loaded=DeskStore(dataDirectory:directory.appendingPathComponent("discovery"),startServices:false)
+            precondition(loaded.settings.deviceID==id,"Binding persists")
+            bound.forgetDeviceBinding();precondition(bound.settings.deviceID==nil && bound.settings.deviceURL.isEmpty && bound.tasks.count==1 && !bound.connected)
+        }
         print("PASS: offline recovery, unchanged-frame dedupe, no task resurrection, phone ownership, no automatic full refresh, bounded backoff, Agent timeout/restart/stop")
     }
 }
