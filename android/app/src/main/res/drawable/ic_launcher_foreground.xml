@@ -1,0 +1,9 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Compact paper display; all artwork stays inside the adaptive icon safe zone. -->
+    <path android:fillColor="#F7F3E9" android:pathData="M33,31 H75 Q80,31 80,36 V70 Q80,75 75,75 H33 Q28,75 28,70 V36 Q28,31 33,31 Z"/>
+    <path android:fillColor="#205741" android:pathData="M36,38 H72 Q73,38 73,39 V66 Q73,68 71,68 H37 Q35,68 35,66 V39 Q35,38 36,38 Z"/>
+    <path android:fillColor="#F7F3E9" android:pathData="M42,45 H60 V49 H42 Z M42,55 H55 V59 H42 Z"/>
+    <path android:fillColor="#C75B49" android:pathData="M65,26 H76 Q79,26 79,29 V40 Q79,43 76,43 H65 Q62,43 62,40 V29 Q62,26 65,26 Z"/>
+    <path android:fillColor="#F7F3E9" android:pathData="M67,31 H74 V33 H67 Z M67,36 H74 V38 H67 Z"/>
+    <path android:fillColor="#F7F3E9" android:pathData="M45,79 H63 Q65,79 65,81 Q65,83 63,83 H45 Q43,83 43,81 Q43,79 45,79 Z"/>
+</vector>

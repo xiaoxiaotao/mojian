@@ -2,7 +2,7 @@
 
 一块安静的办公墨水屏：让重要待办留在眼前，让工作与生活有自己的节奏。
 
-**当前版本：Mac 0.4.8 / Android 0.8.0，开发验证阶段。** 原生 Mac 应用负责配置、数据与 Agent；ESP32 驱动 800×480 黑白红墨水屏。普通内容变化使用黑白分区局刷，红色仅用于固定品牌装饰。
+**当前版本：Mac 0.4.8 / Android 0.8.1，开发验证阶段。** 原生 Mac 应用负责配置、数据与 Agent；ESP32 驱动 800×480 黑白红墨水屏。普通内容变化使用黑白分区局刷，红色仅用于固定品牌装饰。
 
 ![信息总览示例，全部为虚构演示数据](docs/images/overview.png)
 
@@ -40,7 +40,7 @@ Mac 与 Android 均可独立通过局域网直连 ESP32，不需要同时运行 
 
 ## 下载安装
 
-最新安装包见 [GitHub Releases](https://github.com/xiaoxiaotao/mojian/releases)：Mac 0.4.8（Apple Silicon，macOS 14+）与 Android 0.8.0（Android 8.0+）。当前为开发预览包：Mac 为本地开发签名、尚未公证，APK 为调试签名；校验值随发布提供。源码与构建说明继续保留在本仓库。
+最新安装包见 [GitHub Releases](https://github.com/xiaoxiaotao/mojian/releases)：Mac 0.4.8（Apple Silicon，macOS 14+）与 Android 0.8.1（Android 8.0+）。当前为开发预览包：Mac 为本地开发签名、尚未公证，APK 为调试签名；校验值随发布提供。源码与构建说明继续保留在本仓库。
 
 ## 快速开始：Mac
 
