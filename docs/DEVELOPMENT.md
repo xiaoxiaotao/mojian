@@ -91,3 +91,7 @@ cp .env.example .env
 ## 个人数据与 Git
 
 Mac运行数据在 `~/Library/Application Support/MoJian/`，包括清单、Agent会话和提醒记录；Key在钥匙串。它们不属于仓库资源。`.env`、本机固件凭据、个人画面、原始日志、依赖和 `dist/` 均被忽略。可在提交前执行 `python3 tools/audit_repository.py` 检查暂存/已跟踪文件。
+
+## 屏幕字体资源
+
+Mac与Android构建会运行`tools/prepare_screen_fonts.py`，首次需联网下载约44MB字体并校验SHA256，缓存于tools/downloads。直接Gradle构建也需要Python3。字体原文件与OFL许可随应用打包，不提交下载缓存。见[屏幕字体](SCREEN_FONTS.md)。

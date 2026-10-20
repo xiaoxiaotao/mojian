@@ -2,6 +2,9 @@ import Foundation
 
 @MainActor enum InformationTest {
     static func run(){
+        precondition(ScreenFonts.font("待办清单",19,false).fontName.contains("SourceHanSans"),"Bundled Chinese font")
+        precondition(ScreenFonts.font("09:30",52,true).fontName.contains("Inter"),"Bundled numeric font")
+        precondition(ScreenFonts.font("下班之后",26,false).fontName.contains("LXGW"),"Bundled calendar font")
         func date(_ value:String)->Date {ISO8601DateFormatter().date(from:value)!}
         let now=date("2026-10-17T18:00:00+08:00")
         let item=ImportantDate(title:"Example deadline",date:date("2026-10-19T00:00:00+08:00"))

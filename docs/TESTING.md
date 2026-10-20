@@ -1,12 +1,12 @@
 # 测试与兼容性
 
-当前 Mac 0.4.7 / Android 0.7.7，开发验证阶段。验证硬件为 ESP32-WROOM-32D、DESPI-C02、GDEY075Z08 800×480 黑白红屏；Mac为Apple Silicon/macOS SDK 15.2，Android实机为Mi 10 Pro。
+当前 Mac 0.4.8 / Android 0.8.0，开发验证阶段。验证硬件为 ESP32-WROOM-32D、DESPI-C02、GDEY075Z08 800×480 黑白红屏；Mac为Apple Silicon/macOS SDK 15.2，Android实机为Mi 10 Pro。
 
 ## 自动化验证
 
 - `sh tools/test.sh`：Mac业务、可靠性、卡片、任务、重复规则与扩展隔离测试；C++差分传输、局刷窗口、红色保留带、配网分片、DNS解析及网页布局检查。
 - `python3 -m unittest discover -s tests -v`：22项，包含兼容服务、共享HTTP服务、持久分区地址保护，需安装requirements.txt。
-- Android调试APK的DeskChecks、ScreenChecks、AssistantChecks、ExtensionChecks、RepeatChecks、UiChecks通过。最新重复规则18项；扩展103项、布局996项；UI检查覆盖360dp及1.3倍字体。命令见Android README。
+- Android调试APK的DeskChecks、ScreenChecks、AssistantChecks、ExtensionChecks、RepeatChecks、UiChecks通过。最新重复规则18项；扩展103项、布局2012项；UI检查覆盖320/360dp及1.3倍字体。命令见Android README。
 - 最新两端构建、固件编译/USB烧录、Mac开发签名和APK签名校验通过。
 
 隔离测试不写真实用户事项或屏幕；模拟通知不代表系统已实际展示。
@@ -34,3 +34,7 @@
 - 正式签名公证、跨设备迁移、公共部署和商业分发条件。
 
 修改波形须保留协议测试并提供面板型号与真实观察结果。设备回执不能代替光学验收。
+
+## 字体资源验证
+
+三种字体实际加载与字形检查通过；包内字体SHA256与清单一致，OFL版权文件随包保留。Mac/Android办公及日历位图预览通过，自主模式数字与天气字库构建并烧录验证；试用保留原手机布局/清单，明确恢复基准一次，随后局刷。文字区域缓存变化与红色保留带已检查；最终实屏观感仍需光学判断。原生控件未改字体。

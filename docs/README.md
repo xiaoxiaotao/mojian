@@ -2,6 +2,7 @@
 
 - [历史记录查找](HISTORY_SEARCH.md)
 - [设备发现与恢复](DEVICE_DISCOVERY.md)
+- [屏幕字体与许可](SCREEN_FONTS.md)
 - [开发指南](DEVELOPMENT.md)
 - [测试与兼容性](TESTING.md)
 - [截止时间快捷选项](DEADLINE_SHORTCUTS.md)

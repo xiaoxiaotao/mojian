@@ -132,11 +132,14 @@ void setupLocalPortal(){
 }
 void handleLocalPortal(){deviceWeb.handleClient();if(localRestartBle&&!autoFetching){localRestartBle=false;startBluetooth();}}
 
-// Small bitmap digits keep the clock alive without phone fonts or a Mac renderer.
+// Small pre-rendered Inter glyphs keep autonomous digits consistent with clients.
+#include "autonomy_digits.h"
 void localDigits(uint8_t* bitmap,const char* value,int x,int y,int scale){
- static const uint8_t glyphs[12][7]={{14,17,19,21,25,17,14},{4,12,4,4,4,4,14},{14,17,1,2,4,8,31},{30,1,1,14,1,1,30},{2,6,10,18,31,2,2},{31,16,16,30,1,1,30},{14,16,16,30,17,17,14},{31,1,2,4,8,8,8},{14,17,17,14,17,17,14},{14,17,17,15,1,1,14},{0,4,4,0,4,4,0},{0,0,0,31,0,0,0}};
- for(const char* c=value;*c;c++,x+=6*scale){int index=*c>='0'&&*c<='9'?*c-'0':*c==':'?10:11;
-  for(int yy=0;yy<7;yy++)for(int xx=0;xx<5;xx++)if(glyphs[index][yy]&(1<<(4-xx)))for(int dy=0;dy<scale;dy++)for(int dx=0;dx<scale;dx++){int px=x+xx*scale+dx,py=y+yy*scale+dy;if(px>=0&&px<800&&py>=0&&py<480)bitmap[py*100+px/8]&=~(128>>(px%8));}
+ const uint8_t* glyphs;int w,h;
+ switch(scale){case 2:glyphs=&AUTO_DIGITS_2[0][0];w=10;h=16;break;case 3:glyphs=&AUTO_DIGITS_3[0][0];w=16;h=24;break;case 4:glyphs=&AUTO_DIGITS_4[0][0];w=22;h=30;break;case 6:glyphs=&AUTO_DIGITS_6[0][0];w=34;h=46;break;default:return;}
+ int stride=(w+7)/8;
+ for(const char* c=value;*c;c++,x+=6*scale){int index=*c>='0'&&*c<='9'?*c-'0':*c==':'?10:*c=='-'?11:-1;if(index<0)continue;
+  for(int yy=0;yy<h;yy++)for(int xx=0;xx<w;xx++)if(!(glyphs[index*stride*h+yy*stride+xx/8]&(128>>(xx%8)))){int px=x+xx,py=y+yy;if(px>=0&&px<800&&py>=0&&py<480)bitmap[py*100+px/8]&=~(128>>(px%8));}
  }
 }
 void updateLocalClock(){

@@ -5,7 +5,7 @@ public final class DeskChecks extends Instrumentation {
  Bundle args;
  @Override public void onCreate(Bundle b){args=b;start();}
  void check(boolean value,String message){if(!value)throw new AssertionError(message);}
- @Override public void onStart(){Bundle result=new Bundle();try{
+ @Override public void onStart(){ScreenFonts.load(getTargetContext());Bundle result=new Bundle();try{
   check(DeskModel.movement(1.25).equals("▲ +1.25%"),"positive sign");check(DeskModel.movement(-1.25).equals("▼ -1.25%"),"negative sign");check(DeskModel.movement(0).equals("— 0.00%"),"flat sign");
   check(DeskModel.symbols("sh600519,usAAPL").length()==2,"symbol parse");boolean rejected=false;try{DeskModel.symbols("sh600519,sh600519");}catch(Exception e){rejected=true;}check(rejected,"duplicate symbols rejected");rejected=false;try{DeskModel.normalizeOrigin("http://user:pass@192.168.1.1");}catch(Exception e){rejected=true;}check(rejected,"credentials in device URL rejected");
   JSONArray fixture=new JSONArray().put(DeskModel.task("普通事项",null)).put(DeskModel.task("置顶事项",null).put("pinned",true));check(DeskModel.ordered(fixture).getJSONObject(0).getString("title").equals("置顶事项"),"pinned ordering");check(fixture.getJSONObject(0).getString("title").equals("普通事项"),"ordering does not mutate source");

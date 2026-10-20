@@ -7,6 +7,7 @@ if [ ! -d "$TASK_ROOT/agent-engine/node_modules" ] || [ ! -x "$TASK_ROOT/agent-e
   exit 1
 fi
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+python3 "$TASK_ROOT/tools/prepare_screen_fonts.py" --destination "$APP/Contents/Resources/Fonts"
 if [ -n "${MACOS_SDK:-}" ]; then
   SDK_PATH="$MACOS_SDK"
 elif [ -d /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk ]; then

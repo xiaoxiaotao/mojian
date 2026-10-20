@@ -36,3 +36,6 @@ docs/*verification.json
 # Keep only intentionally generated, fictional gallery images below docs/images/.
 
 **/.pio/
+
+# Reproducible downloaded screen fonts; licenses and manifest live in resources/fonts.
+android/app/src/main/assets/fonts/

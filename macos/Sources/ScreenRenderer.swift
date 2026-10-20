@@ -50,7 +50,7 @@ private struct Painter {
     var active:[DeskTask]{InformationLogic.ordered(c.tasks)}
     func text(_ value:String,_ x:CGFloat,_ y:CGFloat,_ size:CGFloat=18,_ width:CGFloat=752,_ height:CGFloat=48,_ bold:Bool=false){
         let p=NSMutableParagraphStyle();p.lineBreakMode = height>50 ? .byWordWrapping:.byTruncatingTail
-        (value as NSString).draw(in:NSRect(x:x,y:y,width:width,height:height),withAttributes:[.font:NSFont.systemFont(ofSize:size,weight:bold ? .semibold:.regular),.foregroundColor:NSColor.black,.paragraphStyle:p])
+        (value as NSString).draw(in:NSRect(x:x,y:y,width:width,height:height),withAttributes:[.font:ScreenFonts.font(value,size,bold),.foregroundColor:NSColor.black,.paragraphStyle:p,.strokeWidth:bold && !ScreenFonts.isDigits(value) ? -1.0:0])
     }
     func rule(_ x:CGFloat,_ y:CGFloat,_ w:CGFloat,_ vertical:Bool=false){let p=NSBezierPath();p.lineWidth=1;p.move(to:NSPoint(x:x,y:y));p.line(to:NSPoint(x:vertical ? x:x+w,y:vertical ? y+w:y));NSColor.black.setStroke();p.stroke()}
     func outline(_ x:CGFloat,_ y:CGFloat,_ w:CGFloat,_ h:CGFloat){NSColor.black.setStroke();NSBezierPath(rect:NSRect(x:x,y:y,width:w,height:h)).stroke()}

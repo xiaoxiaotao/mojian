@@ -1,6 +1,6 @@
 # 墨间 Android
 
-原生 Android 客户端，当前 0.7.7，Android 8.0+。手机与 ESP32 独立使用，无需运行 Mac。蓝牙发现设备地址，内容经同一局域网 Wi-Fi 传输，设备直连不需要口令。
+原生 Android 客户端，当前 0.8.0，Android 8.0+。手机与 ESP32 独立使用，无需运行 Mac。蓝牙发现设备地址，内容经同一局域网 Wi-Fi 传输，设备直连不需要口令。
 
 ## 已实现
 
@@ -129,3 +129,7 @@ adb shell am instrument -w com.desktodo.app/com.desktodo.app.ScreenChecks
 Android 0.7.6：工作台「事项处理记录」支持文字搜索、完成/跳过/删除筛选及确认恢复；仅本机最多100条保留记录。见[历史查找](../docs/HISTORY_SEARCH.md)。
 
 Android 0.7.7：首次连上新版固件后记住设备ID，前台自动用系统NSD找回变化的IP；设备页可明确解除绑定。见[设备发现与恢复](../docs/DEVICE_DISCOVERY.md)。
+
+Android0.7.8：屏幕位图统一OFL中文/数字字体，构建自动准备并保留许可；原生控件字体保持系统设置。见[字体说明](../docs/SCREEN_FONTS.md)。
+
+Android0.8.0重新整理工作台、助手与设置的原生呈现：今日概览、集中清单、工具网格、并排确认动作、分组设置及来源导航。通过320/360dp、字体1.0/1.3下2012项布局与返回路径检查。手机数据、确认流程与设备协议保持原逻辑。
