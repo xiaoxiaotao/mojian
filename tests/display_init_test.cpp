@@ -71,12 +71,21 @@ int main(){
  assert(full[2].value==0x50&&full[2].data==std::vector<unsigned char>({0x13,0x07}));
  assert(full[3].value==0x12);
  assert(full[1].data.size()==48000);
- assert(full[1].data[7999]==0xFF);
- assert(full[1].data[8000]==(unsigned char)~staticAccentWire(8000,0));
- assert(full[1].data[10399]==(unsigned char)~staticAccentWire(10399,0));
- assert(full[1].data[10400]==0xFF);
+ for(unsigned i=0;i<48000;i++){
+  unsigned char expected=(i>=8000&&i<10400)?(unsigned char)~staticAccentWire(i,0):0xFF;
+  assert(full[1].data[i]==expected);
+ }
 #else
  assert(full.size()==3&&full[0].value==0x10&&full[1].value==0x13&&full[2].value==0x12);
+#endif
+ testTransfers.clear();EPD_WhiteScreen_ALL(newFrame,nullptr,nullptr,false,0);auto legacy=commands();
+#if defined(MOJIAN_EXPERIMENT_GX_FULL_TEMP)
+ // The temperature block applies to every full write, including legacy pages.
+ assert(legacy.size()==5&&legacy[0].value==0x10&&legacy[1].value==0x13);
+ assert(legacy[2].value==0xE0&&legacy[3].value==0x41&&legacy[4].value==0x12);
+#else
+ // CDI changes only static-accent frames; production and CDI keep 3 commands.
+ assert(legacy.size()==3&&legacy[0].value==0x10&&legacy[1].value==0x13&&legacy[2].value==0x12);
 #endif
  testTransfers.clear();EPD_WhiteScreen_ALL(nullptr,nullptr,nullptr,true,0,&paged);sameTransfers(flatFull);paged.release();
  puts("PASS: real driver initialization, erase old/current/sync planes, window-only scan and shutdown isolation");

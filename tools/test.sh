@@ -23,12 +23,12 @@ done
   "$TASK_ROOT/tests/display_shutdown_test.cpp" "$TASK_ROOT/firmware/src/EPD.cpp" "$TASK_ROOT/firmware/src/EPD_SPI.cpp" -o "$TEST_DIR/display_shutdown_ab"
 "$TEST_DIR/display_shutdown_ab"
 "$TEST_DIR/display_shutdown"
-for variant in production sleep init gx_full gx_full_cdi; do
+for variant in production sleep init gx_full_temp gx_full_cdi; do
   case "$variant" in
     production) experiment_flag="" ;;
     sleep) experiment_flag="-DMOJIAN_EXPERIMENT_BW_SLEEP=1" ;;
     init) experiment_flag="-DMOJIAN_EXPERIMENT_BW_INIT=1" ;;
-    gx_full) experiment_flag="-DMOJIAN_EXPERIMENT_GX_FULL_TEMP=1" ;;
+    gx_full_temp) experiment_flag="-DMOJIAN_EXPERIMENT_GX_FULL_TEMP=1" ;;
     gx_full_cdi) experiment_flag="-DMOJIAN_EXPERIMENT_GX_FULL_CDI=1" ;;
   esac
   "${CXX:-c++}" -std=c++17 ${experiment_flag:+"$experiment_flag"} -I"$TASK_ROOT/tests/display_stubs" -I"$TASK_ROOT/firmware/src" \

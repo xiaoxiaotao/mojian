@@ -307,7 +307,7 @@ Mac0.4.12/build23、Android0.8.4/code25已构建安装。长股票名与空名�
 - 对照发现原驱动全刷使用厂商 `0x50=0x11`、不写 `0xE0/0x41`；GxEPD2 1.6.9 同型号全刷使用 `0x50=0x13` 并写 `0xE0=0x00`、`0x41=0x00`。
 - UC8179 CDI (R50h) 的 `DDX[1]` 是红色数据极性：`0x11→0x13` 会翻转红平面，必须同时反相静态红色掩膜。因此实验只加温度块 `0xE0/0x41`，不改 `0x50`，避免红反色污染残影对照。
 - 新增默认关闭的 `esp32-l-gx-full-temp-ab`：仅在 `EPD_WhiteScreen_ALL` 写完 `0x10/0x13` 后、`EPD_Update` 前追加温度块；默认全刷、局刷、休眠、红带和故障保护不变。详见 docs/DISPLAY_FULL_REFRESH_AB.md。
-- `tests/gx_full_settings_test.cpp` 逐字节检查温度块；`display_init` 的 `gx_full` 变体检查真实 `EPD_WhiteScreen_ALL` 的命令顺序。`sh tools/test.sh` 通过，五套固件配置编译通过。
+- `tests/gx_full_settings_test.cpp` 逐字节检查温度块；`display_init` 的 `gx_full_temp` 变体检查真实 `EPD_WhiteScreen_ALL` 的命令顺序。`sh tools/test.sh` 通过，五套固件配置编译通过。
 - 未烧录、未写屏；温度块是否改善红色残留需要实物 A/B，不能以编译或测试通过宣布解决。
 
 ## 2026-11-08 全刷温度块实验部署
@@ -344,5 +344,6 @@ Mac0.4.12/build23、Android0.8.4/code25已构建安装。长股票名与空名�
 - 修正 `gxFullCdiRedWire()` 带外写 `0xFF` 后，重新烧录 `esp32-l-gx-full-cdi-ab` 到应用分区 0x10000；写入 1,388,224 字节并 hash verified，未写 NVS/LittleFS。
 - 重启后 health：`gx-full-cdi-2026-11-08` / `gxepd2-full-cdi`，存储正常、无显示故障、基准待重建。读取快照后执行一次明确全刷，事务 `fc9c407a-00000001` completed，等待 29,654 ms；`baseline_ready=true`、无故障/超时。
 - 布局、任务、`content_key`、`accent_style` 与烧录前一致；红带 y=80…103 全白；影子帧 264 字节变化，边界 x=128…719、y=10…73，仅时钟/天气区域。
-- 全刷后 180 秒只读观察：18 个样本，0 读取错误、0 重启；基准始终有效，新增 3 个差分窗口并全部完成。
+- 全刷后 180 秒只读观察：18 个样本，0 读取错误、0 重启；基准始终有效，新增 3 个差分窗口并全部完成。随后 300 秒观察：29 个样本，0 读取错误、0 重启，新增 5 个差分窗口并全部完成；运行约 25 分钟累计 33 次刷新全部完成、32 个差分窗口，无故障/超时。
+- CDI 回归已扩展到整帧 48000 字节的带内取反/带外 `0xFF`，并验证旧 Python 非 staticAccent 全刷仍只有 `0x10/0x13/0x12` 三条命令。
 - 黑白影子帧仍不能证明红色平面颜色。用户需确认背景为白、品牌带为正红而不是整屏红底；若仍异常，立即回退温度块。私有证据在 `data/connection-2026-11-08/gx-full-cdi-fixed/`。
