@@ -1,6 +1,7 @@
 #include "static_accent.h"
 #include <EPD_SPI.h>
 #include "EPD.h"
+#include "full_refresh_settings.h"
 #if defined(MOJIAN_EXPERIMENT_GX_REFERENCE) && (defined(MOJIAN_EXPERIMENT_BW_INIT) || defined(MOJIAN_EXPERIMENT_BW_SLEEP))
 #error "Do not combine independent reference and A-driver experiments"
 #endif
@@ -193,6 +194,10 @@ void EPD_WhiteScreen_ALL(const unsigned char* datasBW,const unsigned char* datas
 	  {
 	    EPD_W21_WriteDATA(staticAccent?staticAccentWire(i,accentStyle):(pages?(*pages)[i]:(datasRW?datasRW[i]:0x00)));  //Transfer the actual displayed data
 	  }
+#ifdef MOJIAN_EXPERIMENT_GX_FULL
+    // Same register block as GxEPD2 _Update_Full, applied before refresh.
+    applyGxFullRefreshSettings(EPD_W21_WriteCMD,EPD_W21_WriteDATA);
+#endif
     EPD_Update();
 
 }

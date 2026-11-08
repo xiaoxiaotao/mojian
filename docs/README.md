@@ -6,6 +6,7 @@
 - [屏幕字体与许可](SCREEN_FONTS.md)
 - [显示更新诊断](DISPLAY_DIAGNOSTICS.md)
 - [同型号参考驱动对照](REFERENCE_DISPLAY_TEST.md)
+- [全刷寄存器对照实验](DISPLAY_FULL_REFRESH_AB.md)
 - [开发指南](DEVELOPMENT.md)
 - [测试与兼容性](TESTING.md)
 - [截止时间快捷选项](DEADLINE_SHORTCUTS.md)

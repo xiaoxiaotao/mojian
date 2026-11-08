@@ -13,7 +13,7 @@ if [ ! -x "$APP" ]; then printf 'Build the Mac application with tools/build_maco
 "$APP" --task-management-test
 TEST_DIR=$(mktemp -d "${TMPDIR:-/tmp}/mojian-protocol.XXXXXX")
 trap 'rm -rf "$TEST_DIR"' EXIT HUP INT TERM
-for name in differential_transfer refresh_plan paged_plane static_accent autonomy_geometry provision_frames weather_dns weather_body network_recovery display_guard frame_borrow paint_transaction commit_policy; do
+for name in differential_transfer refresh_plan paged_plane static_accent autonomy_geometry provision_frames weather_dns weather_body network_recovery display_guard frame_borrow paint_transaction commit_policy gx_full_settings; do
   "${CXX:-c++}" -std=c++17 "$TASK_ROOT/tests/${name}_test.cpp" -o "$TEST_DIR/$name"
   "$TEST_DIR/$name"
 done
@@ -23,11 +23,12 @@ done
   "$TASK_ROOT/tests/display_shutdown_test.cpp" "$TASK_ROOT/firmware/src/EPD.cpp" "$TASK_ROOT/firmware/src/EPD_SPI.cpp" -o "$TEST_DIR/display_shutdown_ab"
 "$TEST_DIR/display_shutdown_ab"
 "$TEST_DIR/display_shutdown"
-for variant in production sleep init; do
+for variant in production sleep init gx_full; do
   case "$variant" in
     production) experiment_flag="" ;;
     sleep) experiment_flag="-DMOJIAN_EXPERIMENT_BW_SLEEP=1" ;;
     init) experiment_flag="-DMOJIAN_EXPERIMENT_BW_INIT=1" ;;
+    gx_full) experiment_flag="-DMOJIAN_EXPERIMENT_GX_FULL=1" ;;
   esac
   "${CXX:-c++}" -std=c++17 ${experiment_flag:+"$experiment_flag"} -I"$TASK_ROOT/tests/display_stubs" -I"$TASK_ROOT/firmware/src" \
     "$TASK_ROOT/tests/display_init_test.cpp" "$TASK_ROOT/firmware/src/EPD.cpp" "$TASK_ROOT/firmware/src/EPD_SPI.cpp" -o "$TEST_DIR/display_init_$variant"

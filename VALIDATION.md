@@ -301,3 +301,10 @@ Mac0.4.12/build23、Android0.8.4/code25已构建安装。长股票名与空名�
 - 配网互斥量空检查、时钟分配失败 5 秒退避、快照读取前大小上限、先校时后自主绘制、非 flexible 分支红带避让、`EPD_W21_ReadDATA` 片选改回 GPIO27。
 - 新增 boot-mode 源码契约回归。`sh tools/test.sh` 通过；`esp32-l` 与 `esp32-l-gx-reference-ab` 编译 SUCCESS（RAM 33.2%，Flash 52.7% / 52.9%）。
 - 本轮未烧录、未写屏、未改变 LUT/波形/极性/扫描模式；上述为源码、协议与构建验证，不代表光学或长期稳定性结论。
+
+## 2026-11-08 全刷寄存器对照实验
+
+- 对照发现原驱动全刷使用厂商 `0x50=0x11`、不写 `0xE0/0x41`；GxEPD2 1.6.9 同型号全刷使用 `0x50=0x13` 并写 `0xE0=0x00`、`0x41=0x00`，且在 `0x12` 前重写该块。
+- 新增默认关闭的 `esp32-l-gx-full-ab`：仅在 `EPD_WhiteScreen_ALL` 写完 `0x10/0x13` 后、`EPD_Update` 前追加 GxEPD2 全刷寄存器块；默认全刷、局刷、休眠、红带和故障保护不变。详见 docs/DISPLAY_FULL_REFRESH_AB.md。
+- `tests/gx_full_settings_test.cpp` 逐字节检查寄存器块；`display_init` 新增 `gx_full` 变体检查真实 `EPD_WhiteScreen_ALL` 的命令顺序。`sh tools/test.sh` 通过，默认/全刷实验/参考驱动三配置编译通过。
+- 未烧录、未写屏；全刷寄存器是否改善红色残留需要实物 A/B，不能以编译或测试通过宣布解决。
