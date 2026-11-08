@@ -30,8 +30,9 @@ import AppKit
             settings.info.cards=["countdown","week"]
             settings.info.dates=[ImportantDate(title:"示例：产品发布",date:now.addingTimeInterval(12*86400))]
             let weather=WeatherSnapshot(temperature:22,code:2,days:[DayForecast(date:"2026-10-17",low:18,high:25,code:2),DayForecast(date:"2026-10-18",low:19,high:24,code:61),DayForecast(date:"2026-10-19",low:18,high:23,code:0)],fetched:now)
-            for layout in DeskLayout.allCases {settings.layout=layout;let content=ScreenContent(tasks:tasks,settings:settings,weather:weather,quotes:[],now:now);try? ScreenRenderer.savePNG(ScreenRenderer.render(content),to:directory.appendingPathComponent(layout.rawValue+".png"))}
-            let content=ScreenContent(tasks:tasks,settings:settings,weather:weather,quotes:[],now:now,afterHours:true)
+            let quotes=[StockQuote(code:"sh600519",name:"示例甲",price:1688.00,change:76.80,percent:4.77,asOf:"20261029150000"),StockQuote(code:"sz000001",name:"示例乙",price:9.87,change:-1.10,percent:-9.99,asOf:"20261029150000"),StockQuote(code:"sh603893",name:"示例丙",price:500000.99,change:0,percent:0,asOf:"20261029150000"),StockQuote(code:"sz002273",name:"示例丁",price:18.76,change:0.35,percent:1.90,asOf:"20261029150000"),StockQuote(code:"sh688234",name:"示例戊",price:2.34,change:-0.01,percent:-0.01,asOf:"20261029150000")]
+            for layout in DeskLayout.allCases {settings.layout=layout;let content=ScreenContent(tasks:tasks,settings:settings,weather:weather,quotes:quotes,now:now);try? ScreenRenderer.savePNG(ScreenRenderer.render(content),to:directory.appendingPathComponent(layout.rawValue+".png"))}
+            let content=ScreenContent(tasks:tasks,settings:settings,weather:weather,quotes:quotes,now:now,afterHours:true)
             try? ScreenRenderer.savePNG(ScreenRenderer.render(content),to:directory.appendingPathComponent("calendar.png"));print("Exported illustrative layout previews, not live data");exit(0)
         }
     }

@@ -114,10 +114,11 @@ private struct Painter {
         if let stamp=c.quotes.map({$0.asOf}).min(),stamp.count==14 {
             time=String(stamp.dropFirst(4).prefix(2))+"/"+String(stamp.dropFirst(6).prefix(2))+" "+String(stamp.dropFirst(8).prefix(2))+":"+String(stamp.dropFirst(10).prefix(2))
         }
-        text("行情可能延迟",24,404,15,210,18)
-        text("天气 Open-Meteo",260,404,15,220,18)
-        text(time,572,404,15,204,18)
+        let empty=c.quotes.isEmpty
+        text("行情可能延迟 · Open-Meteo",24,404,15,540,18)
+        if !empty{text(time,576,404,15,200,18)}
         rule(24,422,752)
+        if empty{text("行情待更新 · 稍后自动刷新",24,441,18,752,24);return}
         for i in 0..<5 {
             let x:CGFloat=24+CGFloat(i)*152
             if i<c.quotes.count {
