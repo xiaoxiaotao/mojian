@@ -192,11 +192,20 @@ void EPD_WhiteScreen_ALL(const unsigned char* datasBW,const unsigned char* datas
 		EPD_W21_WriteCMD(0x13);		     //Transfer new data
 	  for(i=0;i<EPD_ARRAY;i++)
 	  {
+#ifdef MOJIAN_EXPERIMENT_GX_FULL_CDI
+	    unsigned char red=staticAccent?gxFullCdiRedWire(i,staticAccentWire(i,accentStyle)):(pages?(*pages)[i]:(datasRW?datasRW[i]:0x00));
+	    EPD_W21_WriteDATA(red);
+#else
 	    EPD_W21_WriteDATA(staticAccent?staticAccentWire(i,accentStyle):(pages?(*pages)[i]:(datasRW?datasRW[i]:0x00)));  //Transfer the actual displayed data
+#endif
 	  }
 #ifdef MOJIAN_EXPERIMENT_GX_FULL_TEMP
     // Only the temperature sensor block that the vendor full path omits.
     applyGxFullTemperatureSettings(EPD_W21_WriteCMD,EPD_W21_WriteDATA);
+#endif
+#ifdef MOJIAN_EXPERIMENT_GX_FULL_CDI
+    // Change red polarity only for the static accent full frame.
+    if(staticAccent)applyGxFullCdiSettings(EPD_W21_WriteCMD,EPD_W21_WriteDATA);
 #endif
     EPD_Update();
 

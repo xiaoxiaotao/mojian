@@ -241,6 +241,10 @@ void setupLocalPortal(){
   j["firmware_revision"]="gx-full-temp-2026-11-08";
   j["display_experiment"]="gxepd2-full-temperature";
 #endif
+#ifdef MOJIAN_EXPERIMENT_GX_FULL_CDI
+  j["firmware_revision"]="gx-full-cdi-2026-11-08";
+  j["display_experiment"]="gxepd2-full-cdi";
+#endif
 #ifdef MOJIAN_EXPERIMENT_BW_SLEEP
   j["display_experiment"]="bw-sleep-no-vcom-rewrite-2026-10-31";
 #endif

@@ -4,6 +4,7 @@
 #include "EPD.h"
 #include "EPD_SPI.h"
 #include "partial_lut.h"
+#include "static_accent.h"
 #include <cassert>
 #include <cstdio>
 uint32_t testMillis=0;
@@ -60,11 +61,20 @@ int main(){
  testTransfers.clear();EPD_Differential_Rect(oldFrame,paged,0,39,800,3);sameTransfers(flatPartial);
  testTransfers.clear();EPD_WhiteScreen_ALL(newFrame,nullptr,nullptr,true,0);auto flatFull=testTransfers;
  auto full=commands();
-#ifdef MOJIAN_EXPERIMENT_GX_FULL_TEMP
+#if defined(MOJIAN_EXPERIMENT_GX_FULL_TEMP)
  assert(full.size()==5);
  assert(full[2].value==0xE0&&full[2].data==std::vector<unsigned char>({0x00}));
  assert(full[3].value==0x41&&full[3].data==std::vector<unsigned char>({0x00}));
  assert(full[4].value==0x12);
+#elif defined(MOJIAN_EXPERIMENT_GX_FULL_CDI)
+ assert(full.size()==4);
+ assert(full[2].value==0x50&&full[2].data==std::vector<unsigned char>({0x13,0x07}));
+ assert(full[3].value==0x12);
+ assert(full[1].data.size()==48000);
+ assert(full[1].data[7999]==staticAccentWire(7999,0));
+ assert(full[1].data[8000]==(unsigned char)~staticAccentWire(8000,0));
+ assert(full[1].data[10399]==(unsigned char)~staticAccentWire(10399,0));
+ assert(full[1].data[10400]==staticAccentWire(10400,0));
 #else
  assert(full.size()==3&&full[0].value==0x10&&full[1].value==0x13&&full[2].value==0x12);
 #endif
