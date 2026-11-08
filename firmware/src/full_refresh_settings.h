@@ -22,5 +22,8 @@ inline void applyGxFullCdiSettings(Command command,Data data){
  command(0x50);data(0x13);data(0x07);
 }
 inline unsigned char gxFullCdiRedWire(unsigned i,unsigned char value){
- return i>=8000&&i<10400?(unsigned char)~value:value;
+ // Under DDX=11 outside the band 0 means red, so static-accent frames must
+ // explicitly write white (0xFF) there; only the band mask is inverted.
+ if(i>=8000&&i<10400)return (unsigned char)~value;
+ return 0xFF;
 }

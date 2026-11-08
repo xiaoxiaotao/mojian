@@ -26,10 +26,10 @@ int main(){
   {true,0x50},{false,0x13},{false,0x07}
  };
  expect(cdi,sizeof cdi/sizeof cdi[0]);
- assert(gxFullCdiRedWire(7999,0x00)==0x00);
+ assert(gxFullCdiRedWire(7999,0x00)==0xFF);
  assert(gxFullCdiRedWire(8000,0x00)==0xFF);
  assert(gxFullCdiRedWire(10399,0x00)==0xFF);
- assert(gxFullCdiRedWire(10400,0x00)==0x00);
+ assert(gxFullCdiRedWire(10400,0x00)==0xFF);
  assert(gxFullCdiRedWire(8000,0xFF)==0x00);
  return 0;
 }

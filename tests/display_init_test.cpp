@@ -71,10 +71,10 @@ int main(){
  assert(full[2].value==0x50&&full[2].data==std::vector<unsigned char>({0x13,0x07}));
  assert(full[3].value==0x12);
  assert(full[1].data.size()==48000);
- assert(full[1].data[7999]==staticAccentWire(7999,0));
+ assert(full[1].data[7999]==0xFF);
  assert(full[1].data[8000]==(unsigned char)~staticAccentWire(8000,0));
  assert(full[1].data[10399]==(unsigned char)~staticAccentWire(10399,0));
- assert(full[1].data[10400]==staticAccentWire(10400,0));
+ assert(full[1].data[10400]==0xFF);
 #else
  assert(full.size()==3&&full[0].value==0x10&&full[1].value==0x13&&full[2].value==0x12);
 #endif
