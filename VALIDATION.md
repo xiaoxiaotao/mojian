@@ -309,3 +309,13 @@ Mac0.4.12/build23、Android0.8.4/code25已构建安装。长股票名与空名�
 - 新增默认关闭的 `esp32-l-gx-full-temp-ab`：仅在 `EPD_WhiteScreen_ALL` 写完 `0x10/0x13` 后、`EPD_Update` 前追加温度块；默认全刷、局刷、休眠、红带和故障保护不变。详见 docs/DISPLAY_FULL_REFRESH_AB.md。
 - `tests/gx_full_settings_test.cpp` 逐字节检查温度块；`display_init` 的 `gx_full` 变体检查真实 `EPD_WhiteScreen_ALL` 的命令顺序。`sh tools/test.sh` 通过，五套固件配置编译通过。
 - 未烧录、未写屏；温度块是否改善红色残留需要实物 A/B，不能以编译或测试通过宣布解决。
+
+## 2026-11-08 全刷温度块实验部署
+
+- 用户授权后烧录 `esp32-l-gx-full-temp-ab` 到应用分区 0x10000；esptool 写入 1,388,096 字节并报告 hash verified，未写 NVS/LittleFS。烧录前设备不在旧 IP/mDNS 上，无法读取 health/state/base；烧录保留文件系统与快照。
+- 重启后 health：`firmware_revision=gx-full-temp-2026-11-08`、`display_experiment=gxepd2-full-temperature`、存储正常、无显示故障、基准待重建。读取设备快照与清单后执行一次明确全刷，事务 `7d82df54-00000001` 最终 `completed`。
+- 全刷后布局 `mac.overview.red-v2`、清单、`content_key` 与 `accent_style` 均保留；`baseline_ready=true`、`needs_full=false`；红带 y=80…103 全白。与烧录前快照相比 131 字节变化，边界 x=168…199、y=10…49，位于时钟/天气区域。
+- 本次全刷等待 29,656 ms；正常 POWER_OFF 等待 41 ms，BUSY 见到忙并最终就绪；读取时刷新命令 2、完成 1、差分窗口 1，无显示故障/超时；heap free 约 52.9 KB，最大块约 34.8 KB。
+- 该 29.7 秒长于此前记录的约 20 秒，可能与温度块、面板温度或批次有关，单次样本不能归因。
+- 部署后 120 秒只读观察：11 个样本，0 读取错误、0 重启；基准始终有效，新增 3 个差分窗口并全部完成。未观察到显示故障或超时。
+- 未做光学判断；红色残留是否改善由用户实屏观察。私有证据在 `data/connection-2026-11-08/gx-full-temp/`。
