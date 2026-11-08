@@ -18,6 +18,7 @@ final class DeskRenderer {
  void text(String s,float x,float y,float size,float width){text(s,x,y,size,width,false);}
  void rule(float x,float y,float w,boolean vertical){p.setColor(Color.BLACK);p.setStrokeWidth(2);c.drawLine(x,y,vertical?x:x+w,vertical?y+w:y,p);}
  void check(float x,float y,float size){p.setColor(Color.BLACK);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2);c.drawRect(x,y,x+size,y+size,p);p.setStyle(Paint.Style.FILL);}
+ String agendaDate(JSONObject t){try{Instant d=Instant.parse(t.getString("due"));LocalDate day=d.atZone(ScreenData.ZONE).toLocalDate();LocalDate today=now.atZone(ScreenData.ZONE).toLocalDate();if(day.equals(today))return "";if(day.equals(today.plusDays(1)))return "明天";return day.getMonthValue()+"月"+day.getDayOfMonth()+"日";}catch(Exception e){return "";}}
  void tasks(String id)throws Exception{
   String kind=DeskModel.kind(id);if(kind.equals("calendar"))return;
   float width=kind.equals("focus")||kind.equals("agenda")?500:kind.equals("pomodoro")?430:478,height=284;
@@ -27,7 +28,7 @@ final class DeskRenderer {
   String title=kind.equals("agenda")?"今日安排":kind.equals("pomodoro")?"专心做事":kind.equals("living")?"留给自己的小事":kind.equals("custom")?"我的待办":"待办清单";
   text(title,24,118,23,width-70,true);text(tasks.length()+" 项",24+width-55,123,15,55);
   int limit=kind.equals("custom")?7:kind.equals("agenda")||kind.equals("living")||kind.equals("pomodoro")?5:6;int count=Math.min(limit,Math.max(1,(int)((height-42)/46)));float row=Math.min(58,(height-(tasks.length()>count?64:40))/count);
-  for(int i=0;i<Math.min(count,tasks.length());i++){JSONObject t=tasks.getJSONObject(i);float y=160+i*row,left=kind.equals("agenda")?108:48;if(kind.equals("agenda")){String time="待定";try{time=DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.of("Asia/Shanghai")).format(Instant.parse(t.getString("due")));}catch(Exception ignored){}text(time,24,y+1,17,76,true);}else check(25,y+5,10);text((t.optBoolean("pinned")?"★ ":"")+t.getString("title"),left,y,22,width-(left-24),DeskModel.overdue(t));text(DeskModel.due(t),left,y+28,15,width-(left-24));}
+  for(int i=0;i<Math.min(count,tasks.length());i++){JSONObject t=tasks.getJSONObject(i);float y=160+i*row,left=kind.equals("agenda")?108:48;if(kind.equals("agenda")){String time="待定";try{time=DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.of("Asia/Shanghai")).format(Instant.parse(t.getString("due")));}catch(Exception ignored){}text(time,24,y+1,17,76,true);}else check(25,y+5,10);text((t.optBoolean("pinned")?"★ ":"")+t.getString("title"),left,y,22,width-(left-24),DeskModel.overdue(t));if(kind.equals("agenda")){if(DeskModel.overdue(t))text("已逾期",left,y+28,15,width-(left-24));else{String ad=agendaDate(t);if(!ad.isEmpty())text(ad,left,y+28,15,width-(left-24));}}else text(DeskModel.due(t),left,y+28,15,width-(left-24));}
   if(tasks.length()==0)text("没有未完成事项，留点时间给自己。",26,182,18,width-2);if(tasks.length()>count)text("另有 "+(tasks.length()-count)+" 项，见手机清单",24,118+height-20,14,width);c.restoreToCount(save);
   if(kind.equals("pomodoro")){clear(510,348,260,54);text(cfg.optString("focusTask",tasks.length()>0?tasks.getJSONObject(0).getString("title"):"为自己留一段不被打扰的时间"),510,348,18,260);}
  }

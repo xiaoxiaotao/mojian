@@ -132,6 +132,13 @@ private struct Painter {
             }
         }
     }
+    func agendaDateText(_ task:DeskTask)->String{
+        guard let due=task.due else{return ""}
+        let cal=WorkSchedule.calendar
+        if cal.isDateInToday(due){return ""}
+        if cal.isDateInTomorrow(due){return "明天"}
+        return dateText(due,"M月d日")
+    }
     func todos(_ x:CGFloat,_ y:CGFloat,_ w:CGFloat,_ h:CGFloat,_ title:String="待办清单",_ timeline:Bool=false,_ limit:Int=6){
         text(title,x,y,23,w-70,32,true);text("\(active.count) 项",x+w-55,y+5,15,55)
         let count=min(limit,max(1,Int((h-42)/46)));let rowHeight=min(58,(h-(active.count>count ? 64:40))/CGFloat(count))
@@ -140,7 +147,10 @@ private struct Painter {
             let left=x+(timeline ? 84:24)
             if timeline {text(task.due.map{dateText($0,"HH:mm")} ?? "待定",x,top+1,17,76,30,true)} else{outline(x+1,top+5,10,10)}
             text((task.pinned == true ? "★ ":"")+task.title,left,top,22,w-(left-x),30,task.overdue)
-            text(dueText(task),left,top+28,15,w-(left-x),20)
+            if timeline{
+                if task.overdue{text("已逾期",left,top+28,15,w-(left-x),20)}
+                else{let day=agendaDateText(task);if !day.isEmpty{text(day,left,top+28,15,w-(left-x),20)}}
+            }else{text(dueText(task),left,top+28,15,w-(left-x),20)}
         }
         if active.isEmpty{text("没有未完成事项，留点时间给自己。",x+2,y+64,18,w,48)}
         if active.count>count{text("另有 \(active.count-count) 项，见 Mac 清单",x,y+h-20,14,w,20)}
