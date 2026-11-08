@@ -237,6 +237,10 @@ void setupLocalPortal(){
   j["display_reference_commit"]="de82887e77a78528ea386e68bba2cb0291d2c319";
   j["display_partial_spi_hz"]=10000000;
 #endif
+#ifdef MOJIAN_EXPERIMENT_GX_FULL_TEMP
+  j["firmware_revision"]="gx-full-temp-2026-11-08";
+  j["display_experiment"]="gxepd2-full-temperature";
+#endif
 #ifdef MOJIAN_EXPERIMENT_BW_SLEEP
   j["display_experiment"]="bw-sleep-no-vcom-rewrite-2026-10-31";
 #endif

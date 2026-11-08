@@ -48,6 +48,12 @@ KWR 模式下 `DDX[1]` 是**红色数据极性**，`DDX[0]` 是 K/W 数据极性
 0x41 0x00
 ```
 
+刷入后 health 应显示：
+
+```json
+{"firmware_revision":"gx-full-temp-2026-11-08","display_experiment":"gxepd2-full-temperature"}
+```
+
 保持不变的项：
 
 - 默认 `esp32-l` 全刷路径、`0x50=0x11`、静态红色掩膜、局刷波形、`0x50=F7` 休眠、红带、SPI 频率、超时与故障锁存。
