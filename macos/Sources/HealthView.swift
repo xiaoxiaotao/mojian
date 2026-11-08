@@ -32,7 +32,7 @@ struct HealthView:View {
    if !store.storageError.isEmpty{Text(store.storageError).foregroundStyle(.red)}
   }
  }
- var syncTitle:String {if store.isSending{return "发送中"};if store.phoneOwnsScreen{return "手机控制中 · Mac未接管"};if store.requiresLayoutApplication{return "需要明确应用布局"};if store.syncPending{return "本机有内容待同步"};return store.lastSync==nil ? "尚无发送回执":"已有发送回执"}
+ var syncTitle:String {if !store.connected{return "设备离线 · 等待连接"};if store.isSending{return "发送中"};if store.phoneOwnsScreen{return "手机控制中 · Mac未接管"};if store.requiresLayoutApplication{return "需要明确应用布局"};if store.syncPending{return "本机有内容待同步"};return store.lastSync==nil ? "尚无发送回执":"已有发送回执"}
  var stockTitle:String {if store.settings.stocks.isEmpty{return "未选择股票"};let available=Set(store.quotes.map{$0.code});let count=store.settings.stocks.filter{available.contains($0)}.count;return (store.stockFetchFailed ? "最近获取失败 · ":"")+"已缓存 \(count) / \(store.settings.stocks.count) 支"}
  var commuteTitle:String {if store.commute==nil && (store.settings.homeAddress.isEmpty || store.settings.workAddress.isEmpty || store.amapKey.isEmpty){return "需要配置路线与高德Key"};return DataHealth.freshness(store.commute?.fetched,now:store.now,ttl:900,failed:store.commuteFetchFailed)}
  func stamp(_ date:Date?,_ label:String)->String {date.map{label+"："+dateText($0,"MM/dd HH:mm:ss")} ?? label+"：本次尚无记录"}
@@ -42,8 +42,8 @@ struct HealthView:View {
 }
 extension DeskStore {
  func checkHealthConnection()async {
-  guard !healthBusy,!isSending,!isConnecting else{return};healthBusy=true;defer{healthBusy=false}
+  if deviceIOBusy{pendingHealthCheck=true;return};healthBusy=true;defer{healthBusy=false;Task{await self.drainDeviceOperations()}}
   let destination=settings.deviceURL
-  do{let state=try await transport.state(destination,deviceToken);try DeviceIdentity.verify(settings.deviceID,state.device_id);guard settings.deviceURL==destination else{return};lastDeviceContact=Date();healthMessage="设备已响应；仅检查连接，未导入清单或发送画面。"}catch{guard settings.deviceURL==destination else{return};healthMessage="本次检查失败，请检查供电、Wi-Fi和设备地址。旧内容仍保留。";lastDeviceContact=nil}
+  do{let state=try await transport.state(destination,deviceToken);try DeviceIdentity.verify(settings.deviceID,state.device_id);guard settings.deviceURL==destination else{return};recordReadOnlyConnection(state);healthMessage=deviceNeedsFull ? "设备已在线；显示基准已失效，需明确应用布局恢复画面。此次检查未发送画面。":"设备已响应；仅检查连接，未导入清单或发送画面。"}catch{guard settings.deviceURL==destination else{return};recordReadOnlyConnectionFailure(error);healthMessage="本次检查失败，请检查供电、Wi-Fi和设备地址。旧内容仍保留。"}
  }
 }

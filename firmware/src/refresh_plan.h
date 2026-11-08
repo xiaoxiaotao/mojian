@@ -12,8 +12,8 @@ inline RefreshPlan planRefresh(const uint8_t* oldBW,const uint8_t* oldRed,const 
 }
 
 // Independent region planning; caller establishes red-plane equality for this region.
-template<class RedPlane>
-inline RefreshPlan planRegion(const uint8_t* oldBW,const uint8_t* bw,const RedPlane& red,int x,int y,int w,int h){
+template<class RedPlane,class NewPlane>
+inline RefreshPlan planRegion(const uint8_t* oldBW,const NewPlane& bw,const RedPlane& red,int x,int y,int w,int h){
  RefreshPlan p;
  for(int row=y;row<y+h;row++)for(int col=x/8;col<(x+w)/8;col++)if(oldBW[row*100+col]!=bw[row*100+col]){
   p.changed=true;if(col*8<p.x)p.x=col*8;if(row<p.y)p.y=row;if((col+1)*8>p.right)p.right=(col+1)*8;if(row+1>p.bottom)p.bottom=row+1;

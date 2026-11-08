@@ -61,7 +61,7 @@ import Foundation
         precondition(restored.layout == .overview && !calendar && restored.homeAddress=="PRIVATE")
         do{_=try DeskExtensions.apply(["schema":"bad"],to:prefs);preconditionFailure("Invalid schema accepted")}catch{}
         do{_=try DeskExtensions.hubURL("http://public.example");preconditionFailure("HTTP remote accepted")}catch{}
-        _=try DeskExtensions.hubURL("http://192.168.31.2:8788")
+        _=try DeskExtensions.hubURL("http://192.168.1.2:8788")
         precondition(!DeskExtensions.privateHost("192.168.attacker.example"))
         let plugin=try DataPlugin.parse(["schema":"mojian-card-v1","name":"fixture","kind":"daily","items":["先做好一件事"]])
         precondition(plugin.display(at:Date())=="先做好一件事")

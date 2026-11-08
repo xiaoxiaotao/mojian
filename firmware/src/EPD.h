@@ -1,6 +1,10 @@
 #include "paged_plane.h"
 #ifndef _EPD_H_
 #define _EPD_H_
+#include "display_guard.h"
+#include "display_telemetry.h"
+extern DisplayGuard displayGuard;
+extern DisplayTelemetry displayTelemetry;
 
 #define EPD_WIDTH   800
 #define EPD_HEIGHT  480
@@ -10,13 +14,14 @@
 //Full screen update display
 void EPD_Init(void);
 void EPD_Init_180(void);
-void EPD_WhiteScreen_ALL(const unsigned char* datasBW,const unsigned char* datasRW,const PagedPlane* pages=nullptr,bool staticAccent=false,unsigned accentStyle=0);
+void EPD_WhiteScreen_ALL(const unsigned char* datasBW,const unsigned char* datasRW,const PagedPlane* pages=nullptr,bool staticAccent=false,unsigned accentStyle=0,const PagedPlane* pagedBW=nullptr);
 void EPD_WhiteScreen_White(void);
 void EPD_WhiteScreen_Black(void);
 void EPD_DeepSleep(void);
 void EPD_Dis_PartAll(const unsigned char * datas);
 void EPD_Init_Differential(void);
 void EPD_Differential_Rect(const unsigned char*,const unsigned char*,unsigned int,unsigned int,unsigned int,unsigned int);
+void EPD_Differential_Rect(const unsigned char*,const PagedPlane&,unsigned int,unsigned int,unsigned int,unsigned int);
 //Partial update display
 void EPD_Init_Part(void);
 void EPD_SetRAMValue_BaseMap(const unsigned char* datasBW,const unsigned char* datasRW);

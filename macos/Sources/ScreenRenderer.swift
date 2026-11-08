@@ -5,6 +5,7 @@ struct ScreenContent {
     var now=Date();var afterHours=false;var brief="";var commute:CommuteSnapshot?;var focusEnd:Date?;var nextEvent:NextCalendarEvent?;var calendarStatus="未启用系统日历"
 }
 enum ScreenRenderer {
+    static func stockPercentage(_ percent:Double)->String {percent==0 ? "0.00%":String(format:"%+.2f%%",percent)}
     static func stockMovement(_ percent:Double)->String {
         if percent == 0{return "— 0.00%"}
         return (percent>0 ? "▲ ":"▼ ")+String(format:"%+.2f%%",percent)
@@ -12,6 +13,11 @@ enum ScreenRenderer {
     static func render(_ content:ScreenContent,accent:Bool=true)->NSImage {
         NSImage(size:NSSize(width:800,height:480),flipped:true){ bounds in
             NSColor.white.setFill();bounds.fill()
+            if let context=NSGraphicsContext.current {
+                context.shouldAntialias=true
+                context.cgContext.setShouldSmoothFonts(false)
+                context.cgContext.setShouldSubpixelPositionFonts(false)
+            }
             let painter=Painter(content)
             if content.afterHours { painter.calendar() } else { painter.work() }
             NSColor.white.setFill();NSRect(x:0,y:80,width:800,height:24).fill()
@@ -31,10 +37,11 @@ enum ScreenRenderer {
         context.draw(cg,in:CGRect(x:0,y:0,width:800,height:480))
         return rgba
     }
-    static func bitmap(_ image:NSImage)throws->Data {
+    static let inkThreshold=168
+    static func bitmap(_ image:NSImage,threshold:Int=inkThreshold)throws->Data {
         let rgba=try raster(image)
         var bytes=[UInt8](repeating:0,count:48000)
-        for i in 0..<384000 { if rgba[i*4]>150 && Int(rgba[i*4])>Int(rgba[i*4+1])*2 && Int(rgba[i*4])>Int(rgba[i*4+2])*2 {bytes[i/8] |= UInt8(128>>(i%8));continue}; if Int(rgba[i*4])*299+Int(rgba[i*4+1])*587+Int(rgba[i*4+2])*114 >= 160000 { bytes[i/8] |= UInt8(128>>(i%8)) } }
+        for i in 0..<384000 { if rgba[i*4]>150 && Int(rgba[i*4])>Int(rgba[i*4+1])*2 && Int(rgba[i*4])>Int(rgba[i*4+2])*2 {bytes[i/8] |= UInt8(128>>(i%8));continue}; if Int(rgba[i*4])*299+Int(rgba[i*4+1])*587+Int(rgba[i*4+2])*114 >= threshold*1000 { bytes[i/8] |= UInt8(128>>(i%8)) } }
         return Data(bytes)
     }
     static func savePNG(_ image:NSImage,to url:URL)throws {
@@ -50,10 +57,27 @@ private struct Painter {
     var active:[DeskTask]{InformationLogic.ordered(c.tasks)}
     func text(_ value:String,_ x:CGFloat,_ y:CGFloat,_ size:CGFloat=18,_ width:CGFloat=752,_ height:CGFloat=48,_ bold:Bool=false){
         let p=NSMutableParagraphStyle();p.lineBreakMode = height>50 ? .byWordWrapping:.byTruncatingTail
-        (value as NSString).draw(in:NSRect(x:x,y:y,width:width,height:height),withAttributes:[.font:ScreenFonts.font(value,size,bold),.foregroundColor:NSColor.black,.paragraphStyle:p,.strokeWidth:bold && !ScreenFonts.isDigits(value) ? -1.0:0])
+        (value as NSString).draw(in:NSRect(x:x.rounded(),y:y.rounded(),width:width.rounded(.down),height:height),withAttributes:[.font:ScreenFonts.font(value,size,bold),.foregroundColor:NSColor.black,.paragraphStyle:p,.strokeWidth:bold && !ScreenFonts.isDigits(value) ? -0.6:0])
     }
-    func rule(_ x:CGFloat,_ y:CGFloat,_ w:CGFloat,_ vertical:Bool=false){let p=NSBezierPath();p.lineWidth=1;p.move(to:NSPoint(x:x,y:y));p.line(to:NSPoint(x:vertical ? x:x+w,y:vertical ? y+w:y));NSColor.black.setStroke();p.stroke()}
-    func outline(_ x:CGFloat,_ y:CGFloat,_ w:CGFloat,_ h:CGFloat){NSColor.black.setStroke();NSBezierPath(rect:NSRect(x:x,y:y,width:w,height:h)).stroke()}
+    func paragraph(_ value:String,_ x:CGFloat,_ y:CGFloat,_ size:CGFloat,_ width:CGFloat,_ height:CGFloat){
+        guard width>0,height>0 else{return}
+        let line=(size*1.35).rounded(.up),lines=max(1,Int(height/line))
+        let p=NSMutableParagraphStyle();p.lineBreakMode = .byWordWrapping;p.minimumLineHeight=line;p.maximumLineHeight=line
+        let rect=NSRect(x:x.rounded(),y:y.rounded(),width:width.rounded(.down),height:min(height,CGFloat(lines)*line))
+        NSGraphicsContext.saveGraphicsState();rect.clip()
+        (value as NSString).draw(with:rect,options:[.usesLineFragmentOrigin,.truncatesLastVisibleLine],attributes:[.font:ScreenFonts.font(value,size,false),.foregroundColor:NSColor.black,.paragraphStyle:p])
+        NSGraphicsContext.restoreGraphicsState()
+    }
+    func compactStock(_ quote:StockQuote,_ x:CGFloat,_ y:CGFloat,_ width:CGFloat){
+        let value=ScreenRenderer.stockPercentage(quote.percent)
+        let measured=(value as NSString).size(withAttributes:[.font:ScreenFonts.font(value,16,true)]).width
+        let reserved=min(max(0,width-28),max(88,measured.rounded(.up)+16))
+        text(quote.name,x,y,16,max(0,width-reserved-6),22)
+        stockArrow(quote.percent,x+width-reserved,y+5)
+        text(value,x+width-reserved+16,y,16,max(0,reserved-16),22,true)
+    }
+    func rule(_ x:CGFloat,_ y:CGFloat,_ w:CGFloat,_ vertical:Bool=false){let p=NSBezierPath();p.lineWidth=2;p.move(to:NSPoint(x:x,y:y));p.line(to:NSPoint(x:vertical ? x:x+w,y:vertical ? y+w:y));NSColor.black.setStroke();p.stroke()}
+    func outline(_ x:CGFloat,_ y:CGFloat,_ w:CGFloat,_ h:CGFloat){NSColor.black.setStroke();let path=NSBezierPath(rect:NSRect(x:x,y:y,width:w,height:h));path.lineWidth=2;path.stroke()}
     func weatherIcon(_ x:CGFloat,_ y:CGFloat,_ code:Int,_ scale:CGFloat=1){
         NSColor.white.setFill();NSColor.black.setStroke()
         if code==0||code==1||code==2 { let p=NSBezierPath(ovalIn:NSRect(x:x+3*scale,y:y,width:18*scale,height:18*scale));p.lineWidth=1.5;p.stroke() }
@@ -67,30 +91,46 @@ private struct Painter {
     }
     func weatherLine(_ x:CGFloat,_ y:CGFloat,_ width:CGFloat){
         guard let w=c.weather else{text(c.settings.city+" · 天气待更新",x,y,18,width);return}
-        weatherIcon(x,y+4,w.code,0.8);text("\(c.settings.city) · \(w.text)",x+52,y,17,width-52)
+        weatherIcon(x,y+4,w.code,0.8);text("\(c.settings.city) · \(w.text)",x+52,y,18,width-52)
         text(String(format:"%.0f°",w.temperature),x+52,y+25,30,width-52,40,true)
-        if let day=w.days.first {text(String(format:"%.0f° / %.0f°",day.low,day.high),x+116,y+36,14,width-116)}
+        if let day=w.days.first {text(String(format:"%.0f° / %.0f°",day.low,day.high),x+116,y+36,16,width-116)}
     }
     func header(){
         text(dateText(c.now,"HH:mm"),24,10,52,200,64,true)
         text(dateText(c.now,"MM月dd日  EEEE"),242,22,19,284)
-        text(lunarText(c.now),242,52,14,284)
+        text(lunarText(c.now),242,52,16,284)
         weatherLine(548,14,228)
     }
+    func stockArrow(_ percent:Double,_ x:CGFloat,_ y:CGFloat){
+        NSColor.black.setFill()
+        if percent==0 {NSRect(x:x,y:y+4,width:10,height:2).fill();return}
+        let arrow=NSBezierPath()
+        arrow.move(to:NSPoint(x:x,y:y+(percent>0 ? 10:0)))
+        arrow.line(to:NSPoint(x:x+5,y:y+(percent>0 ? 0:10)))
+        arrow.line(to:NSPoint(x:x+10,y:y+(percent>0 ? 10:0)));arrow.close();arrow.fill()
+    }
     func stocks(){
+        var time="行情待更新"
+        if let stamp=c.quotes.map({$0.asOf}).min(),stamp.count==14 {
+            time=String(stamp.dropFirst(4).prefix(2))+"/"+String(stamp.dropFirst(6).prefix(2))+" "+String(stamp.dropFirst(8).prefix(2))+":"+String(stamp.dropFirst(10).prefix(2))
+        }
+        text("自选行情 · 可能延迟",24,404,14,210,18)
+        text("天气 Open-Meteo",260,404,14,220,18)
+        text(time,572,404,14,204,18)
         rule(24,422,752)
         for i in 0..<5 {
             let x:CGFloat=24+CGFloat(i)*152
-            if i<c.quotes.count {let q=c.quotes[i];text(q.name,x,430,13,145,18);text(String(format:"%.2f",q.price),x,449,19,74,24,true);text(ScreenRenderer.stockMovement(q.percent),x+76,452,12,74,20,true)}
-            else {text(i<c.settings.stocks.count ? c.settings.stocks[i]:"未配置",x,434,13,145);text("—",x,453,16,145)}
+            if i<c.quotes.count {
+                let q=c.quotes[i]
+                text(q.name,x,423,16,145,22)
+                text(String(format:"%.2f",q.price),x,441,18,145,24,true)
+                stockArrow(q.percent,x,465)
+                text(ScreenRenderer.stockPercentage(q.percent),x+16,460,16,129,22,true)
+            }else {
+                text(i<c.settings.stocks.count ? c.settings.stocks[i]:"未配置",x,423,16,145,22)
+                text("—",x,444,18,145,24)
+            }
         }
-        var time="待更新"
-        if let stamp=c.quotes.map({$0.asOf}).min(),stamp.count==14 {
-            let month=String(stamp.dropFirst(4).prefix(2)),day=String(stamp.dropFirst(6).prefix(2))
-            let hour=String(stamp.dropFirst(8).prefix(2)),minute=String(stamp.dropFirst(10).prefix(2))
-            time="\(month)/\(day) \(hour):\(minute)"
-        }
-        text("行情可能延迟 · "+time+"   天气 Open-Meteo   本周完成 \(InformationLogic.weekCount(c.tasks,c.settings.info,at:c.now)) / \(c.settings.info.weeklyGoal) 项",24,470,8,752,10)
     }
     func todos(_ x:CGFloat,_ y:CGFloat,_ w:CGFloat,_ h:CGFloat,_ title:String="待办清单",_ timeline:Bool=false,_ limit:Int=6){
         text(title,x,y,23,w-70,32,true);text("\(active.count) 项",x+w-55,y+5,15,55)
@@ -99,20 +139,20 @@ private struct Painter {
             let top=y+42+CGFloat(i)*rowHeight
             let left=x+(timeline ? 84:24)
             if timeline {text(task.due.map{dateText($0,"HH:mm")} ?? "待定",x,top+1,17,76,30,true)} else{outline(x+1,top+5,10,10)}
-            text((task.pinned == true ? "★ ":"")+task.title,left,top,19,w-(left-x),26,task.overdue)
-            text(dueText(task),left,top+26,12,w-(left-x),18)
+            text((task.pinned == true ? "★ ":"")+task.title,left,top,22,w-(left-x),30,task.overdue)
+            text(dueText(task),left,top+28,15,w-(left-x),20)
         }
         if active.isEmpty{text("没有未完成事项，留点时间给自己。",x+2,y+64,18,w,48)}
-        if active.count>count{text("另有 \(active.count-count) 项，见 Mac 清单",x,y+h-14,11,w,16)}
+        if active.count>count{text("另有 \(active.count-count) 项，见 Mac 清单",x,y+h-20,14,w,20)}
     }
-    func note(_ x:CGFloat,_ y:CGFloat,_ w:CGFloat,_ h:CGFloat,_ title:String,_ body:String){text(title,x,y,13,w,24);rule(x,y+27,w);text(body,x,y+41,19,w,h-41)}
+    func note(_ x:CGFloat,_ y:CGFloat,_ w:CGFloat,_ h:CGFloat,_ title:String,_ body:String){text(title,x,y,16,w,24);rule(x,y+27,w);paragraph(body,x,y+41,20,w,h-41)}
     func forecast(_ x:CGFloat,_ y:CGFloat,_ w:CGFloat,_ compact:Bool=false){
         text("三日天气",x,y,compact ? 16:18,w,24,true)
         let offset:CGFloat=compact ? 27:35,row:CGFloat=compact ? 20:32
         for (i,day) in (c.weather?.days ?? []).prefix(3).enumerated(){let top=y+offset+CGFloat(i)*row
-            text(["今天","明天","后天"][i],x,top,compact ? 12:14,40)
+            text(["今天","明天","后天"][i],x,top,16,40)
             weatherIcon(x+(compact ? 32:42),top-1,day.code,compact ? 0.35:0.48)
-            text(String(format:"%.0f° / %.0f°",day.low,day.high),x+(compact ? 62:84),top,compact ? 13:16,w-(compact ? 62:84))
+            text(String(format:"%.0f° / %.0f°",day.low,day.high),x+(compact ? 62:84),top,16,w-(compact ? 62:84))
         }
         if c.weather==nil{text("联网后更新天气",x,y+44,15,w)}
     }
@@ -121,7 +161,7 @@ private struct Painter {
         for slot in 0..<2 {
             let key=slot<cards.count ? cards[slot]:(slot==0 ? "nextEvent":"outdoor")
             var title:String,body:String
-            if key=="plant" {let y:CGFloat=slot==0 ? 120:266;let count=InformationLogic.weekCount(c.tasks,c.settings.info,at:c.now);text("生长小盆栽",x,y,13,width);rule(x,y+27,width);text("\(count) / \(c.settings.info.weeklyGoal)",x,y+45,25,width-86,38,true);text(c.settings.info.sharedCompletions==nil ? "本机本周":"共享本周",x,y+83,13,width-86);plant(x+width-82,y+37,InformationLogic.plantStage(count,c.settings.info.weeklyGoal));continue}
+            if key=="plant" {let y:CGFloat=slot==0 ? 120:266;let count=InformationLogic.weekCount(c.tasks,c.settings.info,at:c.now);text("生长小盆栽",x,y,16,width);rule(x,y+27,width);text("\(count) / \(c.settings.info.weeklyGoal)",x,y+45,25,width-86,38,true);text(c.settings.info.sharedCompletions==nil ? "本机本周":"共享本周",x,y+83,16,width-86);plant(x+width-82,y+37,InformationLogic.plantStage(count,c.settings.info.weeklyGoal));continue}
             switch key {
             case "habits":title="习惯打卡";body=(c.settings.info.habits ?? []).map{($0.days.contains(dateText(c.now,"yyyy-MM-dd")) ? "✓ ":"○ ")+$0.title}.joined(separator:"\n");if body.isEmpty{body="先添加三个小习惯"}
             case "plugin":title=c.settings.info.plugin?.name ?? "数据插件";body=c.settings.info.plugin?.display(at:c.now) ?? "先在共享服务选择插件"
@@ -155,7 +195,7 @@ private struct Painter {
             informationCards(572,204)
         case .minimal:
             text("今天，只做重要的事。",24,116,15,752)
-            for (i,t) in active.prefix(3).enumerated(){let y:CGFloat=160+CGFloat(i)*76;outline(28,y+9,14,14);text((t.pinned == true ? "★ ":"")+t.title,62,y,28,710,40,true);text(dueText(t),62,y+42,13,710)}
+            for (i,t) in active.prefix(3).enumerated(){let y:CGFloat=160+CGFloat(i)*76;outline(28,y+9,14,14);text((t.pinned == true ? "★ ":"")+t.title,62,y,28,710,40,true);text(dueText(t),62,y+42,15,710)}
             if active.isEmpty{text("今天的留白，也很珍贵。",24,194,34,752,90,true)}
         case .overview:
             todos(24,118,478,284);rule(526,116,286,true)
@@ -177,9 +217,9 @@ private struct Painter {
             let x=48+width,w=728-width;let count=max(1,c.settings.customModules.count);let height=338/CGFloat(count)
             for (i,module) in c.settings.customModules.enumerated(){let y:CGFloat=118+CGFloat(i)*height
                 switch module {case "weather":forecast(x,y,w,true);case "stocks":
-                    text("自选行情",x,y,15,w)
-                    if c.quotes.isEmpty {text("等待行情数据",x,y+28,12,w)}
-                    for (j,q) in c.quotes.prefix(5).enumerated(){text(q.name+" "+ScreenRenderer.stockMovement(q.percent),x,y+26+CGFloat(j)*13,11,w)}
+                    text("自选行情",x,y,16,w)
+                    if c.quotes.isEmpty {text("等待行情数据",x,y+28,16,w)}
+                    for (j,q) in c.quotes.prefix(5).enumerated(){compactStock(q,x,y+22+CGFloat(j)*18,w)}
                 default:note(x,y,w,height-8,"桌面小纸条",c.settings.note)}
             }
         }
@@ -195,13 +235,13 @@ private struct Painter {
         weatherLine(24,405,280)
         rule(316,118,344,true)
         let illustrated=c.settings.info.artwork == true
-        if illustrated{landscape(346,118,430,115);text(["冬山藏雪","春山初醒","夏山听雨","秋山有信"][(WorkSchedule.calendar.component(.month,from:c.now)%12)/3]+" · 内置插画",346,240,12,430,20)}else{text(dateText(c.now,"yyyy / MM"),346,116,24,430,40,true)}
+        if illustrated{landscape(346,118,430,115);text(["冬山藏雪","春山初醒","夏山听雨","秋山有信"][(WorkSchedule.calendar.component(.month,from:c.now)%12)/3]+" · 内置插画",346,240,16,430,24)}else{text(dateText(c.now,"yyyy / MM"),346,116,24,430,40,true)}
         var cal=Calendar(identifier:.gregorian);cal.timeZone=TimeZone(identifier:"Asia/Shanghai")!;let components=cal.dateComponents([.year,.month],from:c.now);let first=cal.date(from:components)!;let offset=(cal.component(.weekday,from:first)+5)%7;let days=cal.range(of:.day,in:.month,for:first)!
-        for (i,day) in ["一","二","三","四","五","六","日"].enumerated(){text(day,346+CGFloat(i)*62,illustrated ? 269:163,15,58)}
-        for day in days {let position=offset+day-1;let x=346+CGFloat(position%7)*62;let y=(illustrated ? 300:202)+CGFloat(position/7)*(illustrated ? 20:35)
+        for (i,day) in ["一","二","三","四","五","六","日"].enumerated(){text(day,346+CGFloat(i)*62,illustrated ? 264:163,16,58)}
+        for day in days {let position=offset+day-1;let x=346+CGFloat(position%7)*62;let y=(illustrated ? 290:202)+CGFloat(position/7)*(illustrated ? 22:35)
             if day==cal.component(.day,from:c.now){outline(x-6,y-2,43,illustrated ? 22:31)}
             text("\(day)",x,y,18,50,23,day==cal.component(.day,from:c.now))
-            if let date=cal.date(byAdding:.day,value:day-1,to:first),let marker=CalendarData.marker(date){text(marker,x+28,y+4,8,16,16)}
+            if let date=cal.date(byAdding:.day,value:day-1,to:first),let marker=CalendarData.marker(date){text(marker,x+30,y+2,13,20,20)}
         }
         rule(346,425,430);text(InformationLogic.nearest(c.settings.info.dates,at:c.now).map{InformationLogic.countdown($0,at:c.now).replacingOccurrences(of:"\n",with:" · ")} ?? CalendarData.nextTerm(c.now) ?? c.settings.note,346,441,17,430,34)
     }

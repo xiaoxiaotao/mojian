@@ -5,6 +5,7 @@
 | 部分 | 来源与状态 |
 | --- | --- |
 | 同型号校正LUT/差分实现参考 | [GxEPD2](https://github.com/ZinggJM/GxEPD2)，Jean-Marc Zingg；`firmware/src/partial_lut.h`已注明派生与GPL-3.0，参考源文件与完整许可证保留于`references/gxepd2/` |
+| 同型号参考实验驱动 | GxEPD2 1.6.9，提交`de82887e77a78528ea386e68bba2cb0291d2c319`；原始源码子集、SHA-256与GPLv3许可证保留于`references/gxepd2-1.6.9/`。基类安全适配由项目构建脚本生成，面板类不修改；实验非默认构建 |
 | 基础EPD驱动 | 从原工作区既有display-test工程及ESP32epdx示例继承；本地上游LICENSE文件为空，尚不足以确定完整许可。未把这部分重新声明为MIT；需进一步核验厂商来源和分发授权 |
 | Agent | [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)，SDK版本与依赖锁见`agent-engine/`；本地参考提交1517a4dbca0a2789ff1d41ba439600f8547d23fa。完整上游克隆及其Git元数据保留本地，未嵌入本仓库 |
 | Node | 官方下载URL与SHA-256在`agent-engine/NODE-SOURCE.txt`。准备脚本下载，运行时不提交Git；构建应用时保留Node LICENSE |
@@ -33,3 +34,6 @@ TRMNL、InkyPi、paperlesspaper、Inkycal等用于研究模块划分和信息呈
 - 霞鹜文楷GB屏幕阅读版v1.530：[LXGW WenKai Screen](https://github.com/lxgw/LxgwWenKai-Screen)，日历标题和少量短句；见`resources/fonts/WenKai-OFL.txt`。
 - `resources/fonts/manifest.json`锁定原始字体下载URL和SHA256，构建时下载并以原文件捆绑，许可证同时打包。字体独立维持OFL1.1，不以项目GPL声明替换其许可，不单独售卖字体。未对子集字体沿用保留名称。
 - ESP自主数字和少量天气字形由Inter和思源黑体生成小型位图；生成入口`tools/generate_autonomy_assets.py --font <思源黑体> --digits-font <Inter>`；对应许可另保存在`firmware/resources/`。未把完整字体写入ESP32。
+
+
+固件的HTTP解析保护在构建时从ArduinoESP32 2.0.17 WebServer生成项目本地修改版，保留上游LGPL声明；不修改共享框架。修改脚本、原始文件SHA和限额见 `firmware/tools/prepare_webserver.py` 与 `firmware/tools/README.md`，上游为 https://github.com/espressif/arduino-esp32/tree/2.0.17/libraries/WebServer 。

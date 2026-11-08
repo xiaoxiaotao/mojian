@@ -9,6 +9,7 @@ import AppKit
         if args.contains("--extension-test"){Task{@MainActor in do{try ExtensionTest.run();exit(0)}catch{print("FAIL: extension contracts");exit(1)}};dispatchMain()}
         if args.contains("--reliability-test"){Task{@MainActor in await ReliabilityTest.run();exit(0)};dispatchMain()}
         if args.contains("--task-management-test"){Task{@MainActor in await TaskManagementTest.run();exit(0)};dispatchMain()}
+        if args.contains("--readability-test"){ReadabilityTest.run();exit(0)}
         if args.contains("--information-test"){InformationTest.run();exit(0)}
         if args.contains("--self-test"){SelfTest.run();exit(0)}
         if let i=args.firstIndex(of:"--render-current"),args.count>i+1 {

@@ -1,11 +1,20 @@
 #include "static_accent.h"
 #include <EPD_SPI.h>
 #include "EPD.h"
+#if defined(MOJIAN_EXPERIMENT_GX_REFERENCE) && (defined(MOJIAN_EXPERIMENT_BW_INIT) || defined(MOJIAN_EXPERIMENT_BW_SLEEP))
+#error "Do not combine independent reference and A-driver experiments"
+#endif
+
 
 
 unsigned char PartImage[EPD_ARRAY];//Full-frame partial-refresh base map (800 * 480 / 8).
 unsigned char partFlag=1;
 unsigned char partFlag2=1;
+
+// Opt-in optical experiment only. Full/color sleep retains the vendor path.
+#ifdef MOJIAN_EXPERIMENT_BW_SLEEP
+static bool differentialSleepExperiment=false;
+#endif
 
 
 //Delay Functions
@@ -16,20 +25,19 @@ void delay_xms(unsigned int xms)
 
 ////////////////////////////////////E-paper demo//////////////////////////////////////////////////////////
 //Busy function
-void lcd_chkstatus(void)
+DisplayGuard displayGuard;
+DisplayTelemetry displayTelemetry;
+void lcd_chkstatus(std::atomic<bool>* busySeen=nullptr)
 {
-  const unsigned long started = millis();
-  while (isEPD_W21_BUSY == 0) {
-    if (millis() - started > 60000) {
-      Serial.println("ERROR: EPD BUSY timeout; check ribbon cable, power and adapter settings.");
-      while (true) delay(1000);
-    }
-    delay(1);
-  }
+ if(!displayGuard.wait([busySeen]{bool busy=isEPD_W21_BUSY==0;if(busy&&busySeen)busySeen->store(true);return busy;},[]{return (uint32_t)millis();},[]{delay(1);}))
+  Serial.println("ERROR: EPD BUSY timeout; display paused, network remains available; explicit full refresh required.");
 }
 //Full screen update initialization
 void EPD_Init(void)
 {
+#ifdef MOJIAN_EXPERIMENT_BW_SLEEP
+    differentialSleepExperiment=false;
+#endif
 		EPD_W21_RST_0;		// Module reset
 		delay_xms(10);//At least 10ms delay
 		EPD_W21_RST_1;
@@ -75,6 +83,9 @@ void EPD_Init(void)
 //Fast update 1 initialization
 void EPD_Init_Fast(void)
 {
+#ifdef MOJIAN_EXPERIMENT_BW_SLEEP
+    differentialSleepExperiment=false;
+#endif
 	EPD_W21_RST_0;  // Module reset
 	delay_xms(10);//At least 10ms delay
 	EPD_W21_RST_1;
@@ -125,6 +136,9 @@ void EPD_SetRAMValue_Part(void)
 //Partial update  initialization
 void EPD_Init_Part(void)
 {
+#ifdef MOJIAN_EXPERIMENT_BW_SLEEP
+    differentialSleepExperiment=false;
+#endif
 	EPD_W21_RST_0;  // Module reset
 	delay_xms(10);//At least 10ms delay
 	EPD_W21_RST_1;
@@ -154,21 +168,25 @@ void EPD_Init_Part(void)
 void EPD_Update(void)
 {
 	//update
+	bool observing=!displayGuard.failed;
+	uint32_t began=millis();
+	if(observing)++displayTelemetry.refreshCommands;
 	EPD_W21_WriteCMD(0x12);		//DISPLAY update
 	delay_xms(1);	             //!!!The delay here is necessary, 200uS at least!!!
 	lcd_chkstatus();          //waiting for the electronic paper IC to release the idle signal
+	if(observing){displayTelemetry.lastRefreshWaitMs=uint32_t(millis()-began);if(!displayGuard.failed)++displayTelemetry.refreshCompleted;}
 }
 
 //////////////////////////////Display Data Transfer Function////////////////////////////////////////////
 //Full screen update display function
-void EPD_WhiteScreen_ALL(const unsigned char* datasBW,const unsigned char* datasRW,const PagedPlane* pages,bool staticAccent,unsigned accentStyle)
+void EPD_WhiteScreen_ALL(const unsigned char* datasBW,const unsigned char* datasRW,const PagedPlane* pages,bool staticAccent,unsigned accentStyle,const PagedPlane* pagedBW)
 {
     unsigned int i;
 	  //Write Data
 		EPD_W21_WriteCMD(0x10);	       //Transfer old data
 	  for(i=0;i<EPD_ARRAY;i++)
     {
-	    EPD_W21_WriteDATA(~datasBW[i]);  //Transfer the actual displayed data
+	    EPD_W21_WriteDATA(~(pagedBW?(*pagedBW)[i]:datasBW[i]));  //Transfer the actual displayed data
     }
 		EPD_W21_WriteCMD(0x13);		     //Transfer new data
 	  for(i=0;i<EPD_ARRAY;i++)
@@ -310,11 +328,32 @@ void EPD_Dis_PartAll(const unsigned char * datas)
 //Deep sleep function
 void EPD_DeepSleep(void)
 {
+		if(displayGuard.failed){
+			Serial.println(EPD_FaultPowerOff()?"EPD fault shutdown: BUSY ready; sleep command sent (fault remains latched).":"EPD fault shutdown unconfirmed: check power and BUSY wiring.");
+			return;
+		}
+#ifdef MOJIAN_EXPERIMENT_BW_SLEEP
+        if(!differentialSleepExperiment){
+#endif
 		EPD_W21_WriteCMD(0X50);  //VCOM AND DATA INTERVAL SETTING
 		EPD_W21_WriteDATA(0xf7); //WBmode:VBDF 17|D7 VBDW 97 VBDB 57		WBRmode:VBDF F7 VBDW 77 VBDB 37  VBDR B7
+#ifdef MOJIAN_EXPERIMENT_BW_SLEEP
+        }
+#endif
 
+		displayTelemetry.lastPowerOffBusyReady=false;
+		displayTelemetry.lastPowerOffBusySeen=false;
+		++displayTelemetry.powerOffWaits;
+		uint32_t powerOffBegan=millis();
 		EPD_W21_WriteCMD(0X02);  	//power off
-	  lcd_chkstatus();          //waiting for the electronic paper IC to release the idle signal
+		delay_xms(1); // Allow BUSY to assert before checking power-off completion.
+	  lcd_chkstatus(&displayTelemetry.lastPowerOffBusySeen);
+		displayTelemetry.lastPowerOffWaitMs=uint32_t(millis()-powerOffBegan);
+		displayTelemetry.lastPowerOffBusyReady=!displayGuard.failed;
+		if(displayGuard.failed){
+			Serial.println(EPD_FaultPowerOff()?"EPD fault shutdown: BUSY ready; sleep command sent (fault remains latched).":"EPD fault shutdown unconfirmed: check power and BUSY wiring.");
+			return;
+		}
 		delay_xms(100);	  //!!!The delay here is necessary, 200uS at least!!!
 	  EPD_W21_WriteCMD(0X07);  	//deep sleep
 		EPD_W21_WriteDATA(0xA5);
@@ -562,19 +601,54 @@ void EPD_Display_RW(unsigned char* datasRW)
 // Corrected GDEY075Z08 differential waveform, derived from GxEPD2 (GPLv3+).
 #include "partial_lut.h"
 void EPD_Init_Differential(void){
+#if defined(MOJIAN_EXPERIMENT_BW_INIT) && defined(MOJIAN_EXPERIMENT_BW_SLEEP)
+#error "Run initialization and shutdown optical experiments separately"
+#endif
+#ifdef MOJIAN_EXPERIMENT_BW_INIT
+ // Match the same-model corrected-LUT setup order. No OTP TSFIX override.
+ // Keep full/color initialization and all waveform values unchanged.
+ EPD_W21_RST_0;delay_xms(10);EPD_W21_RST_1;delay_xms(10);
+ lcd_chkstatus();if(displayGuard.failed)return;
+ EPD_W21_WriteCMD(0x01);
+ const unsigned char power[]={0x07,0x07,0x3f,0x3f};
+ for(unsigned char v:power)EPD_W21_WriteDATA(v);
+ EPD_W21_WriteCMD(0x06);
+ const unsigned char booster[]={0x17,0x17,0x28,0x17};
+ for(unsigned char v:booster)EPD_W21_WriteDATA(v);
+ EPD_W21_WriteCMD(0x00);EPD_W21_WriteDATA(0x0f);
+ EPD_W21_WriteCMD(0x61);
+ EPD_W21_WriteDATA(EPD_WIDTH/256);EPD_W21_WriteDATA(EPD_WIDTH%256);
+ EPD_W21_WriteDATA(EPD_HEIGHT/256);EPD_W21_WriteDATA(EPD_HEIGHT%256);
+ EPD_W21_WriteCMD(0x15);EPD_W21_WriteDATA(0x00);
+ EPD_W21_WriteCMD(0x50);EPD_W21_WriteDATA(0x13);EPD_W21_WriteDATA(0x07);
+ EPD_W21_WriteCMD(0x60);EPD_W21_WriteDATA(0x22);
+#else
  EPD_Init_Part();
+#endif
+#ifdef MOJIAN_EXPERIMENT_BW_SLEEP
+ differentialSleepExperiment=true;
+#endif
  EPD_W21_WriteCMD(0x00);EPD_W21_WriteDATA(0x3f);
  EPD_W21_WriteCMD(0x82);EPD_W21_WriteDATA(0x30);
  EPD_W21_WriteCMD(0x50);EPD_W21_WriteDATA(0xa0);EPD_W21_WriteDATA(0x07);
  const unsigned char *tables[]={lut_20_LUTC,lut_21_LUTWW,lut_22_LUTKW,lut_23_LUTWK,lut_24_LUTKK,lut_25_LUTBD};
  for(unsigned int t=0;t<6;t++){EPD_W21_WriteCMD(0x20+t);for(unsigned int j=0;j<42;j++)EPD_W21_WriteDATA(tables[t][j]);}
+#ifdef MOJIAN_EXPERIMENT_BW_INIT
+ EPD_W21_WriteCMD(0x04);delay_xms(100);lcd_chkstatus();
+ if(displayGuard.failed)return;
+ EPD_SetRAMValue_Part();
+#endif
 }
 #include "differential_transfer.h"
-void EPD_Differential_Rect(const unsigned char* oldImage,const unsigned char* newImage,unsigned int x,unsigned int y,unsigned int w,unsigned int h){
+template<class NewImage> void differentialRectImpl(const unsigned char* oldImage,const NewImage& newImage,unsigned int x,unsigned int y,unsigned int w,unsigned int h){
  differentialImages(oldImage,newImage,x,y,w,h,EPD_W21_WriteCMD,EPD_W21_WriteDATA);
+ if(!displayGuard.failed)++displayTelemetry.differentialWindows;
  EPD_Update();EPD_W21_WriteCMD(0x92);
  // Synchronize previous RAM after the visible transition, matching GxEPD2.
  differentialWindow(x,y,w,h,EPD_W21_WriteCMD,EPD_W21_WriteDATA);
  differentialPlane(0x13,newImage,x,y,w,h,EPD_W21_WriteCMD,EPD_W21_WriteDATA);
  EPD_W21_WriteCMD(0x92);
 }
+
+void EPD_Differential_Rect(const unsigned char* oldImage,const unsigned char* newImage,unsigned int x,unsigned int y,unsigned int w,unsigned int h){differentialRectImpl(oldImage,newImage,x,y,w,h);}
+void EPD_Differential_Rect(const unsigned char* oldImage,const PagedPlane& newImage,unsigned int x,unsigned int y,unsigned int w,unsigned int h){differentialRectImpl(oldImage,newImage,x,y,w,h);}

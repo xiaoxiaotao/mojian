@@ -1,5 +1,6 @@
 #include "EPD_SPI.h"
 #include <SPI.h>
+#include "EPD.h"
 
 //SPI write byte
 void SPI_Write(unsigned char value)
@@ -10,6 +11,7 @@ void SPI_Write(unsigned char value)
 //SPI write command
 void EPD_W21_WriteCMD(unsigned char command)
 {
+    if(displayGuard.failed)return;
 	EPD_W21_CS_0;
 	EPD_W21_DC_0;  // D/C#   0:command  1:data
 	SPI_Write(command);
@@ -18,10 +20,32 @@ void EPD_W21_WriteCMD(unsigned char command)
 //SPI write data
 void EPD_W21_WriteDATA(unsigned char datas)
 {
+    if(displayGuard.failed)return;
 	EPD_W21_CS_0;
 	EPD_W21_DC_1;  // D/C#   0:command  1:data
 	SPI_Write(datas);
 	EPD_W21_CS_1;
+}
+
+bool EPD_FaultPowerOff(void)
+{
+    if(!displayGuard.failed)return false;
+    if(displayGuard.shutdownAttempted)return displayGuard.shutdownConfirmed;
+    displayGuard.shutdownAttempted=true;
+    // UC8179 / GxEPD2 shutdown order: POWER_OFF, BUSY ready, DEEP_SLEEP A5.
+    // Only these fixed bytes bypass the fault latch. A broken BUSY line or
+    // unresponsive controller means physical power-off cannot be confirmed.
+    EPD_W21_CS_0;EPD_W21_DC_0;SPI_Write(0x02);EPD_W21_CS_1;
+    delay(1); // Let BUSY assert before examining it.
+    uint32_t began=millis();
+    while(isEPD_W21_BUSY==0){
+        if(uint32_t(millis()-began)>=1000U)return false;
+        delay(1);
+    }
+    EPD_W21_CS_0;EPD_W21_DC_0;SPI_Write(0x07);EPD_W21_CS_1;
+    EPD_W21_CS_0;EPD_W21_DC_1;SPI_Write(0xA5);EPD_W21_CS_1;
+    displayGuard.shutdownConfirmed=true;
+    return true;
 }
 
 
@@ -29,7 +53,7 @@ void EPD_W21_WriteDATA(unsigned char datas)
 #define SPI_MISO 19
 #define SPI_MOSI 23
 #define SPI_SCK  18
-#define SPI_CS   5
+#define SPI_CS   27
 // Save original SPI settings
 SPIClass* originalSPI = &SPI;
 uint8_t originalSdaPin = SPI_MISO;

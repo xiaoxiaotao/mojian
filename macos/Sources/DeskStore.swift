@@ -77,8 +77,11 @@ struct WorkSchedule {
     @Published private(set) var deviceNeedsFull=true
     var requiresLayoutApplication:Bool{connected && (deviceNeedsFull || appliedSignature != signature)}
     var phoneOwnsScreen:Bool{appliedSignature.hasSuffix(".phone")}
-    var layoutBlockedMessage:String{phoneOwnsScreen ? "屏幕当前由手机控制；待办已保存在 Mac。点击“接管并同步（全刷）”后生效。":"屏幕布局与 Mac 不同；请应用布局一次，再继续局部同步。"}
-    private var pendingSync=false,pendingFull=false,debounce:Task<Void,Never>?
+    var layoutBlockedMessage:String{if phoneOwnsScreen{return "屏幕当前由手机控制；待办已保存在 Mac。点击“接管并同步（全刷）”后生效。"};if deviceNeedsFull{return "设备在线，但需重建显示基准；请应用布局一次恢复画面，之后自动局部同步。"};return "屏幕布局与 Mac 不同；请应用布局一次，再继续局部同步。"}
+    private var pendingSync=false,pendingFull=false,pendingScheduled=false,debounce:Task<Void,Never>?
+    private var pendingConnect:Bool?
+    var pendingHealthCheck=false
+    var deviceIOBusy:Bool{isSending || isConnecting || isReadingDevice || healthBusy}
     lazy var extensions=DeskExtensions(store:self)
     private var taskBaseline:[DeskTask]?
     private var lastDeviceCheck=Date.distantPast,isReadingDevice=false
@@ -159,14 +162,31 @@ struct WorkSchedule {
             if !settings.deviceURL.isEmpty{await connectDevice()}
         }
     }
-    func forgetDeviceBinding(){guard !isSending,!isConnecting,!isReadingDevice else{return};settings.deviceID=nil;settings.deviceURL="";connected=false;taskBaseline=nil;try? FileManager.default.removeItem(at:directory.appendingPathComponent("task-baseline.json"));lastFrame=nil;lastContentKey=nil;syncStatus="已解除屏幕绑定，本机内容保留；请发现新屏幕后连接";status=syncStatus}
+    // A read-only health response establishes reachability, not a display receipt.
+    func recordReadOnlyConnection(_ state:DeviceState) {
+        lastDeviceContact=Date();connected=true;reconnectFailures=0;mayReconnect=true
+        appliedSignature=state.layout_id ?? ""
+        deviceNeedsFull = !(state.baseline_ready ?? !state.needs_full) || !state.local_mode || state.external_layout != true
+        if requiresLayoutApplication{syncStatus=layoutBlockedMessage}
+        else if syncPending{syncStatus="设备在线 · 本机内容待同步"}
+        else{syncStatus="设备在线 · 可局部同步"}
+        status=syncStatus
+    }
+    func recordReadOnlyConnectionFailure(_ error:Error) {
+        lastDeviceContact=nil;connected=false
+        mayReconnect=ConnectionRecovery.transient(error) || error is DeviceIdentity.Mismatch
+        reconnectFailures+=1;nextReconnect=Date().addingTimeInterval(ConnectionRecovery.delay(reconnectFailures))
+        syncStatus=mayReconnect ? "设备暂时无法访问，正在自动重连；本机内容已保留":"连接检查失败："+error.localizedDescription
+        status=syncStatus
+    }
+    func forgetDeviceBinding(){guard !deviceIOBusy else{return};settings.deviceID=nil;settings.deviceURL="";connected=false;taskBaseline=nil;try? FileManager.default.removeItem(at:directory.appendingPathComponent("task-baseline.json"));lastFrame=nil;lastContentKey=nil;syncStatus="已解除屏幕绑定，本机内容保留；请发现新屏幕后连接";status=syncStatus}
     func start(){Task{if !settings.deviceURL.isEmpty{await connectDevice();if !connected{try? await Task.sleep(nanoseconds:2_000_000_000);await connectDevice()}};await refreshFeeds();if settings.scheduleEnabled{await checkSchedule()}}}
     func connectDevice(importTasks:Bool=false)async {
-        guard !isConnecting,!isSending else{return}
+        if deviceIOBusy{pendingConnect=(pendingConnect ?? false)||importTasks;return}
         let contactDestination=settings.deviceURL
         let expectedIdentity=settings.deviceID
         isConnecting=true;syncStatus="正在连接工作台…"
-        defer{isConnecting=false}
+        defer{isConnecting=false;Task{await self.drainDeviceOperations()}}
         do {
             var destination=contactDestination
             let state:DeviceState
@@ -229,16 +249,35 @@ struct WorkSchedule {
     }
     func changed(){syncRetryAllowed=true;syncPending=true;syncStatus="已保存在 Mac，等待同步";debounce?.cancel();debounce=Task{try? await Task.sleep(nanoseconds:700_000_000);if !Task.isCancelled,settings.autoSync{debounce=nil;await send(full:false)}}}
     func applyLayout()async{await send(full:true)}
-    func send(full:Bool)async {
-        if isSending{pendingSync=true;pendingFull=pendingFull||full;syncPending=true;return}
+    private func idleDeviceState(_ destination:String,identity:String?)async throws->DeviceState {
+        let started=ProcessInfo.processInfo.systemUptime
+        while true {
+            let state=try await transport.state(destination,deviceToken)
+            guard settings.deviceURL==destination,settings.deviceID==identity else{throw DeviceIdentity.ConnectionChanged()}
+            try DeviceIdentity.verify(identity,state.device_id)
+            if state.display_busy != true{return state}
+            guard ProcessInfo.processInfo.systemUptime-started<180 else{throw URLError(.timedOut)}
+            try await Task.sleep(nanoseconds:500_000_000)
+        }
+    }
+    func send(full:Bool,scheduled:Bool=false)async {
+        if deviceIOBusy{
+            if full{pendingScheduled=pendingFull ? pendingScheduled && scheduled:scheduled}
+            pendingSync=true;pendingFull=pendingFull||full;syncPending=true;return
+        }
         guard connected else{syncPending=true;syncStatus="已保存在 Mac，工作台连接后同步";status=syncStatus;return}
         if !full&&(deviceNeedsFull||appliedSignature != signature){syncPending=true;syncStatus=layoutBlockedMessage;status=syncStatus;return}
+        let destination=settings.deviceURL,identity=settings.deviceID
         isSending=true
         do {
-            let latest=try await transport.state(settings.deviceURL,deviceToken)
-            try DeviceIdentity.verify(settings.deviceID,latest.device_id)
+            let latest=try await idleDeviceState(destination,identity:identity)
+            guard settings.deviceURL==destination,settings.deviceID==identity else{throw DeviceIdentity.ConnectionChanged()}
+            try DeviceIdentity.verify(identity,latest.device_id)
             lastDeviceContact=Date()
-            guard full || latest.layout_id==signature else{appliedSignature=latest.layout_id ?? "";throw DeskError(message:layoutBlockedMessage)}
+            appliedSignature=latest.layout_id ?? ""
+            deviceNeedsFull = !(latest.baseline_ready ?? !latest.needs_full) || !latest.local_mode || latest.external_layout != true
+            if scheduled && phoneOwnsScreen{throw DeskError(message:layoutBlockedMessage)}
+            guard full || (!deviceNeedsFull && latest.layout_id==signature) else{throw DeskError(message:layoutBlockedMessage)}
             if let baseline=taskBaseline {let merged=try TaskReconcile.merge(base:baseline,local:tasks,remote:TaskReconcile.items(latest));tasks=tasks.filter{$0.done && !Set(merged.map{$0.id}).contains($0.id)}+merged}
             else if !TaskReconcile.items(latest).isEmpty && !TaskReconcile.equal(tasks,TaskReconcile.items(latest)){throw DeskError(message:"首次同步清单不同，请先在设备设置中读取设备清单，未覆盖设备")}
             let frame=try ScreenRenderer.blackFrame(content)
@@ -246,32 +285,40 @@ struct WorkSchedule {
             let encoder=JSONEncoder();encoder.outputFormatting=[.sortedKeys]
             let durable=try encoder.encode(SavedState(tasks:tasks,settings:settings,weather:weather,quotes:quotes,afterHours:afterHours))
             let contentKey=SHA256.hash(data:durable).map{String(format:"%02x",$0)}.joined()
-            if full || frame != lastFrame || contentKey != lastContentKey {
+            let remoteChanged=latest.content_key.map{$0 != lastContentKey} ?? false
+            if full || frame != lastFrame || contentKey != lastContentKey || remoteChanged {
                 syncStatus=full ? "正在应用布局，约20秒…":"正在局部同步…";status=syncStatus
-                try await transport.send(settings.deviceURL,deviceToken,frame,sendingTasks,sendingSignature,contentKey,full,latest.content_key)
+                try await transport.send(destination,deviceToken,frame,sendingTasks,sendingSignature,contentKey,full,latest.content_key)
+                guard settings.deviceURL==destination,settings.deviceID==identity else{throw DeviceIdentity.ConnectionChanged()}
                 lastFrame=frame;lastContentKey=contentKey;appliedSignature=sendingSignature;deviceNeedsFull=false;lastSync=Date();lastDeviceContact=Date();rememberTasks(sendingTasks)
                 if full{settings.autoSync=true}
             }
             syncRetryAllowed=true;syncPending=pendingSync;syncStatus="已同步到墨水屏 · "+dateText(lastSync ?? Date(),"HH:mm");status=syncStatus
         }catch {
             syncPending=true
-            if ConnectionRecovery.transient(error){connected=false;mayReconnect=true;reconnectFailures+=1;nextReconnect=Date().addingTimeInterval(ConnectionRecovery.delay(reconnectFailures));syncStatus="同步中断，内容已保存在 Mac；重连后重试局刷"}
+            if error is DeviceIdentity.ConnectionChanged{connected=false;mayReconnect=true;lastDeviceContact=nil;lastSync=nil;nextReconnect = .distantPast;syncStatus="设备地址已变化，正在重新连接；本机内容已保留"}
+            else if ConnectionRecovery.transient(error){connected=false;mayReconnect=true;reconnectFailures+=1;nextReconnect=Date().addingTimeInterval(ConnectionRecovery.delay(reconnectFailures));syncStatus="同步中断，内容已保存在 Mac；重连后重试局刷"}
             else{syncRetryAllowed=false;syncStatus="同步失败："+error.localizedDescription}
             status=syncStatus
         }
         isSending=false
-        if pendingSync {
-            let queuedFull=pendingFull;pendingSync=false;pendingFull=false
-            if connected && (settings.autoSync||queuedFull){await send(full:queuedFull)}
-        }
+        await drainDeviceOperations()
+    }
+    func drainDeviceOperations()async {
+        guard !deviceIOBusy else{return}
+        if let importing=pendingConnect{pendingConnect=nil;await connectDevice(importTasks:importing);return}
+        if pendingHealthCheck{pendingHealthCheck=false;await checkHealthConnection();return}
+        guard pendingSync else{return}
+        let full=pendingFull,scheduled=pendingScheduled;pendingSync=false;pendingFull=false;pendingScheduled=false
+        if connected && (settings.autoSync||full){await send(full:full,scheduled:scheduled)}
     }
     func rememberTasks(_ value:[DeskTask]){taskBaseline=TaskReconcile.active(value);if let bytes=try? JSONEncoder().encode(taskBaseline){try? bytes.write(to:directory.appendingPathComponent("task-baseline.json"),options:.atomic)}}
     func readDeviceChanges()async {
-        guard connected,!isSending,!isConnecting,!isReadingDevice,Date().timeIntervalSince(lastDeviceCheck)>=5 else{return};lastDeviceCheck=Date();isReadingDevice=true;defer{isReadingDevice=false};let local=tasks,destination=settings.deviceURL
-        do{let latest=try await transport.state(destination,deviceToken);guard settings.deviceURL==destination else{return};try DeviceIdentity.verify(settings.deviceID,latest.device_id);lastDeviceContact=Date();guard tasks==local,!isSending else{return};let remoteTasks=TaskReconcile.items(latest);if let baseline=taskBaseline{let merged=try TaskReconcile.merge(base:baseline,local:tasks,remote:remoteTasks);if !TaskReconcile.equal(tasks,merged){tasks=tasks.filter{$0.done && !Set(merged.map{$0.id}).contains($0.id)}+merged;lastFrame=nil;lastContentKey=nil};rememberTasks(remoteTasks)};appliedSignature=latest.layout_id ?? "";deviceNeedsFull = !(latest.baseline_ready ?? !latest.needs_full) || !latest.local_mode || latest.external_layout != true;if requiresLayoutApplication{syncStatus=layoutBlockedMessage}}catch{if ConnectionRecovery.transient(error) || error is DeviceIdentity.Mismatch{lastDeviceContact=nil;connected=false;mayReconnect=true;reconnectFailures+=1;nextReconnect=Date().addingTimeInterval(ConnectionRecovery.delay(reconnectFailures));syncStatus="连接中断，正在找回已绑定屏幕；本机内容已保留"}else{syncStatus=error.localizedDescription};syncRetryAllowed=false}
+        guard connected,!deviceIOBusy,Date().timeIntervalSince(lastDeviceCheck)>=5 else{return};lastDeviceCheck=Date();isReadingDevice=true;defer{isReadingDevice=false;Task{await self.drainDeviceOperations()}};let local=tasks,destination=settings.deviceURL
+        do{let latest=try await transport.state(destination,deviceToken);guard settings.deviceURL==destination else{return};try DeviceIdentity.verify(settings.deviceID,latest.device_id);lastDeviceContact=Date();guard tasks==local,!isSending else{return};let remoteTasks=TaskReconcile.items(latest);if let baseline=taskBaseline{let merged=try TaskReconcile.merge(base:baseline,local:tasks,remote:remoteTasks);if !TaskReconcile.equal(tasks,merged){tasks=tasks.filter{$0.done && !Set(merged.map{$0.id}).contains($0.id)}+merged;lastFrame=nil;lastContentKey=nil;syncPending=true};rememberTasks(remoteTasks)};if let key=latest.content_key,let previous=lastContentKey,key != previous{lastFrame=nil;lastContentKey=nil;syncPending=true};syncRetryAllowed=true;appliedSignature=latest.layout_id ?? "";deviceNeedsFull = !(latest.baseline_ready ?? !latest.needs_full) || !latest.local_mode || latest.external_layout != true;if requiresLayoutApplication{syncStatus=layoutBlockedMessage}}catch{if ConnectionRecovery.transient(error) || error is DeviceIdentity.Mismatch{lastDeviceContact=nil;connected=false;mayReconnect=true;reconnectFailures+=1;nextReconnect=Date().addingTimeInterval(ConnectionRecovery.delay(reconnectFailures));syncStatus="连接中断，正在找回已绑定屏幕；本机内容已保留"}else{syncStatus=error.localizedDescription};syncRetryAllowed=false}
     }
     func recoverConnection()async {
-        guard !settings.deviceURL.isEmpty,!isSending,!isConnecting else{return}
+        guard !settings.deviceURL.isEmpty,!deviceIOBusy else{return}
         if !connected && mayReconnect && Date()>=nextReconnect{await connectDevice()}
         // A different layout/phone ownership always requires explicit application, never a silent full refresh.
         if connected && syncPending && syncRetryAllowed && settings.autoSync && !deviceNeedsFull && appliedSignature==signature{await send(full:false)}
@@ -289,7 +336,7 @@ struct WorkSchedule {
         guard settings.scheduleEnabled else{return}
         if overrideActive {if let until=overrideUntil,Date()>=until{overrideActive=false;overrideUntil=nil}else{return}}
         let target = !WorkSchedule.working(Date(),settings)
-        if target != afterHours{afterHours=target;save();if settings.autoSync&&connected{await send(full:true)}else{status="已按作息切换预览，应用后同步屏幕"}}
+        if target != afterHours{afterHours=target;save();if settings.autoSync&&connected && !phoneOwnsScreen{await send(full:true,scheduled:true)}else{if phoneOwnsScreen{syncPending=true;syncStatus=layoutBlockedMessage};status=phoneOwnsScreen ? layoutBlockedMessage:"已按作息切换预览，应用后同步屏幕"}}
     }
     func enableNotifications()async{do{let allowed=try await UNUserNotificationCenter.current().requestAuthorization(options:[.alert,.sound]);settings.notifications=allowed;status=allowed ? "提醒已开启":"系统未允许通知，可在系统设置中调整"}catch{status="通知权限申请失败"}}
     private func saveReminderHistory(){

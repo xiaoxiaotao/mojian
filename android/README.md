@@ -138,3 +138,14 @@ Android0.8.0重新整理工作台、助手与设置的原生呈现：今日概�
 ### 桌面图标
 
 0.8.1补齐自适应桌面图标：墨绿底、米白屏幕、朱红小印章。`res/drawable/ic_launcher_*` 为矢量图形，`mipmap-anydpi-v26` 为自适应入口，v33增加单色主题图标。品牌预览源稿见 `../resources/branding/mojian-android.svg`。
+
+
+### 屏幕字体清晰度检查
+
+0.8.3调整的是输出到墨水屏的位图，原生手机控件仍使用系统字体和缩放。安装debug APK后可运行：
+
+```sh
+adb shell am instrument -w com.desktodo.app/com.desktodo.app.ReadabilityChecks
+```
+
+检查使用离屏虚构数据，生成 `files/readability-*.png`，不读取个人草稿、不访问网络、不写ESP32；不代表面板光学验收。保持五支股票、正负号、完成后清底与固定红色带。

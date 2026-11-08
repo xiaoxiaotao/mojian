@@ -1,8 +1,11 @@
 # 文档索引
 
+- [工程速查与改动检查清单](ENGINEERING_MAP.md)
 - [历史记录查找](HISTORY_SEARCH.md)
 - [设备发现与恢复](DEVICE_DISCOVERY.md)
 - [屏幕字体与许可](SCREEN_FONTS.md)
+- [显示更新诊断](DISPLAY_DIAGNOSTICS.md)
+- [同型号参考驱动对照](REFERENCE_DISPLAY_TEST.md)
 - [开发指南](DEVELOPMENT.md)
 - [测试与兼容性](TESTING.md)
 - [截止时间快捷选项](DEADLINE_SHORTCUTS.md)
@@ -19,3 +22,5 @@
 - [第三方来源](../THIRD_PARTY_NOTICES.md)
 
 `images/`仅存虚构示例。个人数据、凭据、设备日志与前期调研不公开。
+
+- [残影与红色条纹根因排查](DISPLAY_ROOT_CAUSE_RESEARCH.md)：证据边界、温度/供电核查和后续单因素实验。

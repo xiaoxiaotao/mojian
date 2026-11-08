@@ -1,11 +1,11 @@
 # 测试与兼容性
 
-当前 Mac 0.4.8 / Android 0.8.0，开发验证阶段。验证硬件为 ESP32-WROOM-32D、DESPI-C02、GDEY075Z08 800×480 黑白红屏；Mac为Apple Silicon/macOS SDK 15.2，Android实机为Mi 10 Pro。
+当前 Mac 0.4.12 / Android 0.8.4，开发验证阶段。验证硬件为 ESP32-WROOM-32D、DESPI-C02、GDEY075Z08 800×480 黑白红屏；Mac为Apple Silicon/macOS SDK 15.2，Android实机为Mi 10 Pro。
 
 ## 自动化验证
 
 - `sh tools/test.sh`：Mac业务、可靠性、卡片、任务、重复规则与扩展隔离测试；C++差分传输、局刷窗口、红色保留带、配网分片、DNS解析及网页布局检查。
-- `python3 -m unittest discover -s tests -v`：22项，包含兼容服务、共享HTTP服务、持久分区地址保护，需安装requirements.txt。
+- `python3 -m unittest discover -s tests -v`：24项，包含兼容服务、共享HTTP服务、持久分区地址保护，需安装requirements.txt。
 - Android调试APK的DeskChecks、ScreenChecks、AssistantChecks、ExtensionChecks、RepeatChecks、UiChecks通过。最新重复规则18项；扩展103项、布局2012项；UI检查覆盖320/360dp及1.3倍字体。命令见Android README。
 - 最新两端构建、固件编译/USB烧录、Mac开发签名和APK签名校验通过。
 
@@ -38,3 +38,37 @@
 ## 字体资源验证
 
 三种字体实际加载与字形检查通过；包内字体SHA256与清单一致，OFL版权文件随包保留。Mac/Android办公及日历位图预览通过，自主模式数字与天气字库构建并烧录验证；试用保留原手机布局/清单，明确恢复基准一次，随后局刷。文字区域缓存变化与红色保留带已检查；最终实屏观感仍需光学判断。原生控件未改字体。
+
+
+## Mac0.4.9 同步异常回归
+
+新增7个隔离场景：缓存命中时丢失显示基准、读取中更换地址、发送中更换地址、作息尊重手机控制权、远端变更读回后补同步、发送前手机接管竞态、轮询期间编辑排队。使用注入transport和临时数据目录，不访问真实屏幕或模型。仅通过隔离回归不等于长期实机和光学验证。
+
+
+## 2026-10-29 并行审查修复回归
+
+本节仅指本次新版本；前文历史USB/实机验证不代表本版已刷入设备。
+
+- `sh tools/test.sh`：正常业务及故障回归通过，新增真实EPD/SPI故障关断、真实生成的HTTP解析器、天气固定/chunked/未知长度与时间上限、蓝牙借用失败恢复、原子显示事务发布。
+- Mac可靠性新增远端视觉版本变化、连接/发送/轮询/诊断交错、刷新忙等待及202事务成功/失败/错ID/未知状态/超时；仅 completed 确认成功。
+- Android Java loopback HTTP 33项通过：旧200、202、异常回执、显示忙和423竞争；APK内新增ScreenChecks需另行实机运行，不能把主机测试当作仪器测试。
+- 固件编译成功，RAM静态108732字节、Flash1378061字节（2.5MiB app分区）；显示worker首次使用前分配4096字节栈并持久复用，不计入静态RAM数。运行期堆余量及栈高水位仍需实机测量。
+- 正常刷新波形、固定红色保留带、CAS、手机控制权和明确全刷规则不变。旧客户端不带async=1时仍执行同步刷新，不能保证其刷新期间HTTP可及时响应。
+- 用户明确授权后，主体固件只写0x10000应用分区并哈希校验；保留NVS/文件系统，完整4MiB Flash及原画面已本地备份。授权全刷一次恢复原mac.calendar.red-v2，任务数0与原内容一致，baseline_ready=true，display_fault=false。
+- 已安装并启动Mac0.4.10和Android0.8.2，Mac界面确认“已同步到墨水屏”；安卓ScreenChecks 2191051项断言及DeskChecks只读直连实机通过。没有向屏幕写入虚构待办。
+- 新固件局部同步联调中，35次数字IP健康请求全部成功，其中3次display_busy=true；最长3163ms，无显示fault。全刷恢复也取得completed回执，固定.local路径观测延迟较高，不宣称每次即时响应。
+- 最后新增重复文件START后ABORT的画面回收保护，真实上传回调提取测试通过；用户再次明确授权后已补刷并哈希校验，21.54秒完成原布局恢复，刷新期间27次健康请求成功，最大240.56ms，基准true且无显示故障。
+- 实屏光学、真实故障关断电流、长期稳定性与路由器断网恢复仍待验证。
+
+
+## 清晰优先渲染验证（2026-10-29）
+
+- Mac `--readability-test /absolute/output` 输出七种布局的真实1bit画面及160/168/176阈值对照；检查五支股票三行都有墨迹、矢量方向正确、固定红色带为白。该测试使用虚构内容，不读取真实清单/网络。
+- Android `adb shell am instrument -w com.desktodo.app/com.desktodo.app.ReadabilityChecks`：16970项断言，检查七布局、五股票、箭头、红色带和Unicode省略，保存离屏示例位图，不写真实屏幕。
+- 原Mac全套、C++协议、HTTP与资源生命周期测试通过；Android ScreenChecks 2191051项、DeskChecks及真实设备只读GET通过。正常任务完成/区域清底回归保持。
+- 本轮不修改ESP32波形、LUT或自主字库；无需烧录或重建基准。硬件快速黑白更新的边缘失真仍需实屏观察，不能据软件预览声称已消除。
+
+
+## 长文字与紧凑布局回归
+
+Mac0.4.12/Android0.8.4继续使用清晰优先阈值和字体。新增最窄自定义列的长名称/空名称对照，确保百分比区域逐像素不变；长正文第三行有墨迹且区域外不变；2026年11月六行日期留出底部间隙。Mac离线检查通过，Android ReadabilityChecks359968项、原ScreenChecks2191051项和DeskChecks通过。输出包含custom-narrow、long-cards、calendar-six-rows虚构预览，不写实物测试清单。

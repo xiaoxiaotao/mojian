@@ -8,15 +8,19 @@ struct DeviceState: Decodable {
     var accent_version_supported:String?
     var content_key:String? = nil
     var device_id:String? = nil
+    var display_busy:Bool? = nil
     var tasks:[Item];var local_mode:Bool;var needs_full:Bool;var layout_id:String?;var external_layout:Bool?;var baseline_ready:Bool?
 }
+struct DeviceBusy:LocalizedError{var errorDescription:String?{"屏幕正在更新，请稍候"}}
 enum Remote {
-    static func data(_ url:URL,body:Data?=nil,headers:[String:String]=[:],timeout:Double=25)async throws->Data {
+    static func data(_ url:URL,body:Data?=nil,headers:[String:String]=[:],timeout:Double=25,onStatus:((Int)->Void)?=nil)async throws->Data {
         var request=URLRequest(url:url);request.timeoutInterval=timeout;request.httpMethod=body == nil ? "GET":"POST";request.httpBody=body
         for (key,value) in headers {request.setValue(value,forHTTPHeaderField:key)}
         let (data,response)=try await URLSession.shared.data(for:request)
+        if let http=response as? HTTPURLResponse{onStatus?(http.statusCode)}
         guard let http=response as? HTTPURLResponse,(200..<300).contains(http.statusCode) else {
             let code=(response as? HTTPURLResponse)?.statusCode ?? 0
+            if code==423{throw DeviceBusy()}
             if code==401{throw DeskError(message:url.host=="api.deepseek.com" ? "DeepSeek密钥无效，请在设置中更新":"访问口令不正确，请在设备设置中更新")}
             let error=(try? JSONSerialization.jsonObject(with:data)) as? [String:Any]
             throw DeskError(message:(error?["error"] as? String) ?? "请求失败（\(code)），请检查连接或数据源配置")
@@ -38,7 +42,24 @@ enum Remote {
         let boundary="MoJian"+UUID().uuidString.replacingOccurrences(of:"-",with:"")
         var body=Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"metadata\"\r\n\r\n".utf8);body.append(meta)
         body.append(Data("\r\n--\(boundary)\r\nContent-Disposition: form-data; name=\"frame\"; filename=\"frame.bin\"\r\nContent-Type: application/octet-stream\r\n\r\n".utf8));body.append(frame);body.append(Data("\r\n--\(boundary)--\r\n".utf8))
-        _=try await data(deviceURL(origin,"/api/local/commit?full=\(full ? 1:0)"),body:body,headers:["Content-Type":"multipart/form-data; boundary="+boundary],timeout:90)
+        var responseCode=0
+        let started=ProcessInfo.processInfo.systemUptime
+        var receipt=Data()
+        while true {
+            do{receipt=try await data(deviceURL(origin,"/api/local/commit?full=\(full ? 1:0)&async=1"),body:body,headers:["Content-Type":"multipart/form-data; boundary="+boundary],timeout:90,onStatus:{responseCode=$0});break}
+            catch is DeviceBusy {
+                guard ProcessInfo.processInfo.systemUptime-started<180 else{throw URLError(.timedOut)}
+                try await Task.sleep(nanoseconds:500_000_000)
+            }
+        }
+        let value=(try? JSONSerialization.jsonObject(with:receipt)) as? [String:Any]
+        if responseCode==202 || value?["transaction_id"] != nil {
+            guard let transaction=value?["transaction_id"] as? String,!transaction.isEmpty else{throw DeskError(message:"设备刷新事务为空，未确认同步成功")}
+            var components=URLComponents(url:try deviceURL(origin,"/api/local/transaction"),resolvingAgainstBaseURL:true)!
+            components.queryItems=[URLQueryItem(name:"id",value:transaction)]
+            guard let receiptURL=components.url else{throw DeskError(message:"设备刷新回执地址无效")}
+            try await DeviceCommitReceipt.wait(transaction:transaction){try await data(receiptURL,timeout:6)}
+        }
     }
     static func weather(_ settings:Preferences)async throws->WeatherSnapshot {
         let url=URL(string:"https://api.open-meteo.com/v1/forecast?latitude=\(settings.latitude)&longitude=\(settings.longitude)&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=Asia%2FShanghai&forecast_days=3&hourly=precipitation_probability,apparent_temperature,wind_speed_10m&wind_speed_unit=ms")!

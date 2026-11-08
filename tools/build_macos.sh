@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 TASK_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-APP="$TASK_ROOT/dist/墨间.app"
+APP="${MOJIAN_MAC_APP_PATH:-$TASK_ROOT/dist/墨间.app}"
 if [ ! -d "$TASK_ROOT/agent-engine/node_modules" ] || [ ! -x "$TASK_ROOT/agent-engine/runtime/bin/node" ]; then
   printf 'Prepare Agent dependencies: npm ci --prefix "%s/agent-engine" and python3 "%s/tools/prepare_agent_runtime.py"\n' "$TASK_ROOT" "$TASK_ROOT" >&2
   exit 1

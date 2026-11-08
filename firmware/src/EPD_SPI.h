@@ -24,6 +24,8 @@ SDIN—GPIO23
 void SPI_Write(unsigned char value);
 void EPD_W21_WriteDATA(unsigned char datas);
 void EPD_W21_WriteCMD(unsigned char command);
+// Fixed fault-only power-off sequence; never opens the normal drawing gate.
+bool EPD_FaultPowerOff(void);
 unsigned char EPD_W21_ReadDATA(void);
 
 #endif

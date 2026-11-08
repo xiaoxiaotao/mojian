@@ -20,7 +20,7 @@ class WifiProvisionCallbacks:public NimBLECharacteristicCallbacks {
   JsonDocument j;bool valid=!deserializeJson(j,provisionFrames.data())&&j["ssid"].is<String>()&&j["password"].is<String>();provisionFrames.reset();
   if(!valid){provisionStatus="invalid";return;}String ssid=j["ssid"].as<String>(),password=j["password"].as<String>();
   if(!ssid.length()||ssid.length()>32||(password.length()!=0&&(password.length()<8||password.length()>63))){provisionStatus="invalid";return;}
-  if(xSemaphoreTake(provisionMutex,pdMS_TO_TICKS(100))!=pdTRUE){provisionStatus="busy";return;}
+  if(!provisionMutex||xSemaphoreTake(provisionMutex,pdMS_TO_TICKS(100))!=pdTRUE){provisionStatus="busy";return;}
   if(provisionAttempt||provisionPending){provisionStatus="busy";}else{pendingSSID=ssid;pendingPassword=password;provisionPending=true;provisionStatus="accepted";}xSemaphoreGive(provisionMutex);
  }
 };

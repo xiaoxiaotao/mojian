@@ -1,0 +1,15 @@
+{
+  "repository": "https://github.com/ZinggJM/GxEPD2",
+  "tag": "1.6.9",
+  "commit": "de82887e77a78528ea386e68bba2cb0291d2c319",
+  "sha256": {
+    "LICENSE": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+    "library.properties": "6b31aec599921175a16e0e0c6ee6cb806f1539215c490a0d9f7de883806ed119",
+    "src/GxEPD2.h": "43128c5f58cc48085ee880bb6fac251637cdc117b9f7c2a3c784e7c7f9be41b2",
+    "src/GxEPD2_EPD.h": "fb72a0d686b6528e2cf8cd830a22f9966d7367e0b4e5ec87a29b71e8119a5262",
+    "src/GxEPD2_EPD.cpp": "df8d53eee5530c54b5aadfba7d37ee8450f37331ebbd8d8551b1672a31cb7639",
+    "src/GxEPD2_EPD_friends.h": "b3f4e9db2fc319bb65bbf7dbde7919cd378ee16837fc6064634a17fb46622009",
+    "src/gdey3c/GxEPD2_750c_GDEY075Z08.h": "f6b942b70066c06bd7a0bf100fb6c63048eb884ca74cfddf78f08aaab9b2d83a",
+    "src/gdey3c/GxEPD2_750c_GDEY075Z08.cpp": "7017f4ceb75bdb0e3c5bc620706daa4ae4f45aea61e04eae69b558dac57b7f62"
+  }
+}

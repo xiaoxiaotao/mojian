@@ -6,11 +6,11 @@ inline void differentialWindow(unsigned int x,unsigned int y,unsigned int w,unsi
  const unsigned int coords[]={x,x+w-1,y,y+h-1};
  for(unsigned int c:coords){data(c>>8);data(c&255);}data(0x00);
 }
-inline void differentialPlane(unsigned char reg,const unsigned char* image,unsigned int x,unsigned int y,unsigned int w,unsigned int h,void(*command)(unsigned char),void(*data)(unsigned char)){
+template<class Image> inline void differentialPlane(unsigned char reg,const Image& image,unsigned int x,unsigned int y,unsigned int w,unsigned int h,void(*command)(unsigned char),void(*data)(unsigned char)){
  command(reg);
  for(unsigned int row=y;row<y+h;row++)for(unsigned int col=x/8;col<(x+w)/8;col++)data(image[row*100+col]);
 }
-inline void differentialImages(const unsigned char* oldImage,const unsigned char* newImage,unsigned int x,unsigned int y,unsigned int w,unsigned int h,void(*command)(unsigned char),void(*data)(unsigned char)){
+template<class OldImage,class NewImage> inline void differentialImages(const OldImage& oldImage,const NewImage& newImage,unsigned int x,unsigned int y,unsigned int w,unsigned int h,void(*command)(unsigned char),void(*data)(unsigned char)){
  differentialWindow(x,y,w,h,command,data);
  differentialPlane(0x13,oldImage,x,y,w,h,command,data);
  differentialPlane(0x10,newImage,x,y,w,h,command,data);

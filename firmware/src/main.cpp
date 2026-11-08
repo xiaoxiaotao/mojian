@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <esp_timer.h>
 #include <SPI.h>
 #include <WiFi.h>
 #include <NimBLEDevice.h>
@@ -100,13 +101,16 @@ void poll(){
    if(!plan.changed)continue;
    if(plan.redInWindow){blocked++;continue;}
    if(!started){SPI.beginTransaction(SPISettings(10000000,MSBFIRST,SPI_MODE0));EPD_Init_Differential();started=true;}
+   if(displayGuard.failed)break;
    unsigned long windowStart=millis();
    EPD_Differential_Rect(PartImage,frame,plan.x,plan.y,plan.right-plan.x,plan.bottom-plan.y);
+   if(displayGuard.failed)break;
    for(int y=plan.y;y<plan.bottom;y++)memcpy(PartImage+y*100+plan.x/8,frame+y*100+plan.x/8,(plan.right-plan.x)/8);
    updated++;partialCount++;
    Serial.printf("Region %u window=%d,%d %dx%d duration=%lu ms\n",(unsigned)i,plan.x,plan.y,plan.right-plan.x,plan.bottom-plan.y,millis()-windowStart);
   }
   if(started){EPD_DeepSleep();SPI.endTransaction();}
+  if(displayGuard.failed){hasBase=false;status("屏幕忙碌超时，网络服务保留；请检查硬件并明确应用布局");return;}
   lastAttempt=actual;
   bool complete=redHash==previousRedHash && memcmp(PartImage,frame,PLANE_BYTES)==0;
   if(complete){displayed=actual;ack();}
@@ -116,10 +120,11 @@ void poll(){
   Serial.printf("Region batch updated=%u blocked=%u duration=%lu ms\n",updated,blocked,millis()-began);
   return;
  }else{
-  unsigned long began=millis();SPI.beginTransaction(SPISettings(10000000,MSBFIRST,SPI_MODE0));
+  displayGuard.reset();unsigned long began=millis();SPI.beginTransaction(SPISettings(10000000,MSBFIRST,SPI_MODE0));
   for(size_t i=0;i<PLANE_BYTES;i++){frame[i]=~frame[i];redFrame[i]=~redFrame[i];}
   EPD_Init();EPD_WhiteScreen_ALL(frame,nullptr,&redFrame);EPD_DeepSleep();SPI.endTransaction();
   for(size_t i=0;i<PLANE_BYTES;i++){frame[i]=~frame[i];redFrame[i]=~redFrame[i];}
+  if(displayGuard.failed){hasBase=false;status("屏幕忙碌超时，联网保留，本次不确认显示成功");return;}
   memcpy(PartImage,frame,PLANE_BYTES);previousRedHash=redHash;hasBase=true;partialCount=0;lastFullRequest=request;lastAttempt="";
   for(size_t i=0;i<REGION_COUNT;i++)regionRedHash[i]=redRegionHash(redFrame,REFRESH_REGIONS[i]);
   Serial.printf("User-requested full refresh duration=%lu ms\n",millis()-began);
@@ -141,11 +146,16 @@ void diagnostic(){
  Serial.println("Probe finished; automatic updates remain paused");
 }
 extern bool autoFetching;
-void overlayAutonomy(uint8_t*,const String&);
+template<class Plane> void overlayAutonomy(Plane&,const String&);
 #include "wifi_provision.h"
+#include "network_health.h"
 #include "device_discovery.h"
+#ifdef MOJIAN_EXPERIMENT_GX_REFERENCE
+#include "reference_partial.h"
+#endif
 #include "local_portal.h"
 #include "autonomy.h"
+#include "network_recovery.h"
 // BLE discovery shares an address only, never credentials.
 class DeskEndpointCallbacks : public NimBLECharacteristicCallbacks {
  void onRead(NimBLECharacteristic* characteristic) override {
@@ -180,18 +190,17 @@ void setup(){
  Serial.begin(115200);
  // Free unused Classic BT memory before allocating the large screen frame.
  esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
-
  pinMode(13,INPUT);pinMode(12,OUTPUT);pinMode(14,OUTPUT);pinMode(27,OUTPUT);digitalWrite(27,HIGH);digitalWrite(12,HIGH);SPI.begin(18,19,23,27);
- WiFi.onEvent([](WiFiEvent_t event,WiFiEventInfo_t info){if(event==ARDUINO_EVENT_WIFI_STA_DISCONNECTED)Serial.printf("WiFi disconnected reason=%u\n",info.wifi_sta_disconnected.reason);if(event==ARDUINO_EVENT_WIFI_STA_GOT_IP)Serial.printf("WiFi address: %s\n",WiFi.localIP().toString().c_str());});
+ WiFi.onEvent([](WiFiEvent_t event,WiFiEventInfo_t info){if(event==ARDUINO_EVENT_WIFI_STA_DISCONNECTED){networkLastReason=info.wifi_sta_disconnected.reason;++networkDisconnects;Serial.printf("WiFi disconnected reason=%u\n",info.wifi_sta_disconnected.reason);}if(event==ARDUINO_EVENT_WIFI_STA_GOT_IP){++networkGeneration;Serial.printf("WiFi address: %s\n",WiFi.localIP().toString().c_str());}});
  beginSavedWifi();configTime(8*3600,0,"ntp.aliyun.com","time.cloudflare.com","pool.ntp.org");
  Serial.printf("WiFi initialized; heap=%u largest=%u\n",ESP.getFreeHeap(),ESP.getMaxAllocHeap());
  startBluetooth();setupLocalPortal();setupAutonomy();Serial.println("Quiet mode: no automatic full refresh");
 }
 void loop(){
- updateProvisioning();updateDeviceDiscovery();handleLocalPortal();
+ updateProvisioning();updateNetworkRecovery();updateDeviceDiscovery();handleLocalPortal();
  updateAutonomy();updateLocalClock();
- if(Serial.available()){char command=Serial.read();if(command=='t')diagnostic();if(command=='b'){bleSuspended=true;NimBLEDevice::deinit(true);WiFi.disconnect(false,false);WiFi.reconnect();Serial.println("BLE paused for WiFi diagnosis; reboot restores BLE");}if(command=='n'){int count=WiFi.scanNetworks();Serial.printf("WiFi scan count=%d\n",count);for(int i=0;i<count;i++)if(WiFi.SSID(i)==WEATHER_WIFI_SSID)Serial.printf("Configured AP signal=%d channel=%d auth=%d\n",WiFi.RSSI(i),WiFi.channel(i),(int)WiFi.encryptionType(i));WiFi.scanDelete();}if(command=='r'){WiFi.disconnect(false,false);WiFi.reconnect();Serial.println("WiFi reconnect requested");}if(command=='s')Serial.printf("Network status=%d IP=%s heap=%u uptime=%lu\n",(int)WiFi.status(),WiFi.localIP().toString().c_str(),ESP.getFreeHeap(),millis());}
+ if(!localDisplayBusy()&&Serial.available()){char command=Serial.read();if(command=='t')diagnostic();if(command=='b'){bleSuspended=true;NimBLEDevice::deinit(true);WiFi.disconnect(false,false);WiFi.reconnect();Serial.println("BLE paused for WiFi diagnosis; reboot restores BLE");}if(command=='n'){int count=WiFi.scanNetworks();Serial.printf("WiFi scan count=%d\n",count);for(int i=0;i<count;i++)if(WiFi.SSID(i)==WEATHER_WIFI_SSID)Serial.printf("Configured AP signal=%d channel=%d auth=%d\n",WiFi.RSSI(i),WiFi.channel(i),(int)WiFi.encryptionType(i));WiFi.scanDelete();}if(command=='r'){WiFi.disconnect(false,false);WiFi.reconnect();Serial.println("WiFi reconnect requested");}if(command=='s')Serial.printf("Network status=%d IP=%s heap=%u uptime=%lu\n",(int)WiFi.status(),WiFi.localIP().toString().c_str(),ESP.getFreeHeap(),millis());}
  if(WiFi.status()!=WL_CONNECTED){wifiReported=false;delay(1000);return;}
  if(!wifiReported){Serial.printf("WiFi connected with BLE; heap=%u largest=%u\n",ESP.getFreeHeap(),ESP.getMaxAllocHeap());wifiReported=true;}
- if(!lastPoll||millis()-lastPoll>=5000){lastPoll=millis();poll();}delay(20);
+ if(!localDisplayBusy()&&(!lastPoll||millis()-lastPoll>=5000)){lastPoll=millis();poll();}delay(20);
 }
