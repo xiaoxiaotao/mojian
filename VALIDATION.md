@@ -322,3 +322,12 @@ Mac0.4.12/build23、Android0.8.4/code25已构建安装。长股票名与空名�
 - 第二次全刷后 180 秒只读观察：18 个样本，0 读取错误、0 重启；基准始终有效，新增 3 个差分窗口；读取时完成 2 个、1 个处于忙碌。未观察到显示故障或超时。
 - 另新增 `esp32-l-gx-full-cdi-ab`（`0x50=0x13` + 红带掩膜反相，与温度块互斥）；`gx_full_settings`、`display_init` 的 `gx_full_cdi` 变体通过，配置编译 SUCCESS，**尚未烧录**，等待温度块光学反馈后再做。
 - 未做光学判断；红色残留是否改善由用户实屏观察。私有证据在 `data/connection-2026-11-08/gx-full-temp/`。
+
+## 2026-11-08 0x50 极性实验部署
+
+- 用户授权后烧录 `esp32-l-gx-full-cdi-ab` 到应用分区 0x10000；esptool 写入 1,388,208 字节并报告 hash verified，未写 NVS/LittleFS。烧录前保存了温度块实验的 health/state/base。
+- 重启后 health：`firmware_revision=gx-full-cdi-2026-11-08`、`display_experiment=gxepd2-full-cdi`、存储正常、无显示故障、基准待重建。读取设备快照与清单后执行一次明确全刷，事务 `6789cd09-00000001` 最终 `completed`。
+- 全刷后布局 `mac.overview.red-v2`、清单、`content_key` 与 `accent_style` 均保留；`baseline_ready=true`、`needs_full=false`；红带 y=80…103 全白。与烧录前快照相比 143 字节变化，边界 x=168…719、y=10…73，位于时钟/天气区域。
+- 本次全刷等待 29,655 ms；正常 POWER_OFF 等待 41 ms，BUSY 见到忙并最终就绪；读取时刷新命令 2、完成 1、差分窗口 1，无显示故障/超时。CDI 与温度块两次全刷都约 29.65 秒，说明该时长并非温度块独有，更可能与面板温度/批次或共用全刷流程有关。
+- 全刷后 180 秒只读观察：17 个样本，0 读取错误、0 重启；基准始终有效，新增 3 个差分窗口并全部完成；无显示故障/超时。
+- 黑白影子帧只能验证红带为白，不能证明红色平面的实际颜色。用户需要确认品牌红没有反色，并观察后续局刷的红色残留；协议和计数不能替代光学判断。私有证据在 `data/connection-2026-11-08/gx-full-cdi/`。
