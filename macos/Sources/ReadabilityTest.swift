@@ -57,12 +57,12 @@ import AppKit
         let longNote=try! ScreenRenderer.blackFrame(ScreenContent(tasks:[],settings:notes,weather:weather,quotes:quotes,now:now))
         notes.note=""
         let blankNote=try! ScreenRenderer.blackFrame(ScreenContent(tasks:[],settings:notes,weather:weather,quotes:quotes,now:now))
-        precondition(ink(longNote,550,215,226,35)>20,"Third body line visible")
-        for y in 0..<480{for x in 0..<800 where !(x>=550 && x<776 && ((y>=161 && y<256)||(y>=307 && y<402))){let bit=UInt8(128>>(x%8));precondition(longNote[y*100+x/8]&bit==blankNote[y*100+x/8]&bit,"Paragraph stays inside body")}}
+        precondition(ink(longNote,544,215,232,35)>20,"Third body line visible")
+        for y in 0..<480{for x in 0..<800 where !(x>=544 && x<776 && ((y>=161 && y<256)||(y>=307 && y<402))){let bit=UInt8(128>>(x%8));precondition(longNote[y*100+x/8]&bit==blankNote[y*100+x/8]&bit,"Paragraph stays inside body")}}
         try! saveFrame(longNote,to:directory.appendingPathComponent("long-cards.png"))
         let sixRows=ScreenContent(tasks:[],settings:settings,weather:weather,quotes:[],now:ISO8601DateFormatter().date(from:"2026-11-30T09:30:00+08:00")!,afterHours:true)
         let calendarSix=try! ScreenRenderer.blackFrame(sixRows)
-        precondition(ink(calendarSix,346,400,430,23)>40 && ink(calendarSix,346,423,430,1)==0,"Six calendar rows clear footer")
+        precondition(ink(calendarSix,328,400,448,23)>40 && ink(calendarSix,328,423,448,1)==0,"Six calendar rows clear footer")
         try! saveFrame(calendarSix,to:directory.appendingPathComponent("calendar-six-rows.png"))
         print("PASS: all layouts, five stock names/prices/signed movements, vector arrow direction, narrow-name isolation, paragraph bounds, six-week calendar, red reserve; 1-bit threshold previews exported")
     }

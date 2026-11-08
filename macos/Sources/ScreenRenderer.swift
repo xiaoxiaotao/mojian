@@ -97,9 +97,9 @@ private struct Painter {
     }
     func header(){
         text(dateText(c.now,"HH:mm"),24,10,52,200,64,true)
-        text(dateText(c.now,"MM月dd日  EEEE"),242,22,19,284)
-        text(lunarText(c.now),242,52,16,284)
-        weatherLine(548,14,228)
+        text(dateText(c.now,"MM月dd日  EEEE"),240,22,19,288)
+        text(lunarText(c.now),240,52,16,288)
+        weatherLine(544,14,232)
     }
     func stockArrow(_ percent:Double,_ x:CGFloat,_ y:CGFloat){
         NSColor.black.setFill()
@@ -199,18 +199,18 @@ private struct Painter {
         header();let layout=c.settings.layout
         switch layout {
         case .focus:
-            todos(24,118,500,284);rule(548,116,286,true)
-            informationCards(572,204)
+            todos(24,118,504,284);rule(536,116,288,true)
+            informationCards(544,232)
         case .agenda:
-            todos(24,118,500,284,"今日安排",true,5);rule(548,116,286,true)
-            informationCards(572,204)
+            todos(24,118,504,284,"今日安排",true,5);rule(536,116,288,true)
+            informationCards(544,232)
         case .minimal:
             text("今天，只做重要的事。",24,116,15,752)
             for (i,t) in active.prefix(3).enumerated(){let y:CGFloat=160+CGFloat(i)*76;outline(28,y+9,14,14);text((t.pinned == true ? "★ ":"")+t.title,62,y,28,710,40,true);text(dueText(t),62,y+42,15,710)}
             if active.isEmpty{text("今天的留白，也很珍贵。",24,194,34,752,90,true)}
         case .overview:
-            todos(24,118,478,284);rule(526,116,286,true)
-            informationCards(550,226)
+            todos(24,118,504,284);rule(536,116,288,true)
+            informationCards(544,232)
         case .pomodoro:
             todos(24,118,430,284,"专心做事",false,5);rule(478,116,286,true)
             text("专注时刻",510,120,18,266)
@@ -219,9 +219,9 @@ private struct Painter {
             text(c.focusEnd == nil ? "在 Mac 开始一段专注":"专注进行中",510,302,17,260)
             text(active.first?.title ?? "为自己留一段不被打扰的时间",510,348,18,260,54)
         case .living:
-            todos(24,118,478,284,"留给自己的小事",false,5);rule(526,116,286,true)
-            text(dateText(c.now,"dd"),554,118,84,210,110,true);text(lunarText(c.now),554,228,19,220)
-            note(554,281,222,122,"重要的日子",InformationLogic.nearest(c.settings.info.dates,at:c.now).map{InformationLogic.countdown($0,at:c.now)} ?? c.settings.note)
+            todos(24,118,504,284,"留给自己的小事",false,5);rule(536,116,288,true)
+            text(dateText(c.now,"dd"),544,118,84,232,110,true);text(lunarText(c.now),544,228,19,232)
+            note(544,281,232,122,"重要的日子",InformationLogic.nearest(c.settings.info.dates,at:c.now).map{InformationLogic.countdown($0,at:c.now)} ?? c.settings.note)
         case .custom:
             let width=(752*c.settings.customRatio/8).rounded(.down)*8
             todos(24,118,width-24,338,"我的待办",false,7);rule(24+width,116,340,true)
@@ -246,14 +246,14 @@ private struct Painter {
         weatherLine(24,405,280)
         rule(316,118,344,true)
         let illustrated=c.settings.info.artwork == true
-        if illustrated{landscape(346,118,430,115);text(["冬山藏雪","春山初醒","夏山听雨","秋山有信"][(WorkSchedule.calendar.component(.month,from:c.now)%12)/3]+" · 内置插画",346,240,16,430,24)}else{text("月历",346,116,16,430,40,true)}
+        if illustrated{landscape(328,118,448,115);text(["冬山藏雪","春山初醒","夏山听雨","秋山有信"][(WorkSchedule.calendar.component(.month,from:c.now)%12)/3]+" · 内置插画",328,240,16,448,24)}else{text("月历",328,116,16,448,40,true)}
         var cal=Calendar(identifier:.gregorian);cal.timeZone=TimeZone(identifier:"Asia/Shanghai")!;let components=cal.dateComponents([.year,.month],from:c.now);let first=cal.date(from:components)!;let offset=(cal.component(.weekday,from:first)+5)%7;let days=cal.range(of:.day,in:.month,for:first)!
-        for (i,day) in ["一","二","三","四","五","六","日"].enumerated(){text(day,346+CGFloat(i)*62,illustrated ? 264:163,16,58)}
-        for day in days {let position=offset+day-1;let x=346+CGFloat(position%7)*62;let y=(illustrated ? 290:202)+CGFloat(position/7)*(illustrated ? 22:35)
+        for (i,day) in ["一","二","三","四","五","六","日"].enumerated(){text(day,328+CGFloat(i)*64,illustrated ? 264:163,16,60)}
+        for day in days {let position=offset+day-1;let x=328+CGFloat(position%7)*64;let y=(illustrated ? 290:202)+CGFloat(position/7)*(illustrated ? 22:35)
             if day==cal.component(.day,from:c.now){outline(x-6,y-2,43,illustrated ? 22:31)}
             text("\(day)",x,y,20,50,23,day==cal.component(.day,from:c.now))
             if let date=cal.date(byAdding:.day,value:day-1,to:first),let marker=CalendarData.marker(date){text(marker,x+30,y+2,14,20,20)}
         }
-        rule(346,425,430);text(InformationLogic.nearest(c.settings.info.dates,at:c.now).map{InformationLogic.countdown($0,at:c.now).replacingOccurrences(of:"\n",with:" · ")} ?? CalendarData.nextTerm(c.now) ?? c.settings.note,346,441,17,430,34)
+        rule(328,425,448);text(InformationLogic.nearest(c.settings.info.dates,at:c.now).map{InformationLogic.countdown($0,at:c.now).replacingOccurrences(of:"\n",with:" · ")} ?? CalendarData.nextTerm(c.now) ?? c.settings.note,328,441,17,448,34)
     }
 }

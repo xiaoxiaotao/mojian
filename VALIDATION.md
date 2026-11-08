@@ -369,3 +369,11 @@ Mac0.4.12/build23、Android0.8.4/code25已构建安装。长股票名与空名�
 - 今日安排第二行去掉重复的日期时间：今天只保留时间列，跨天显示“明天/M月d日”，逾期显示“已逾期”；Mac/Android 同步。
 - Mac 已重新构建 `dist/墨间.app`，`sh tools/test.sh` 通过，并用 `--render-previews docs/images` 重新生成虚构预览。Android `assembleDebug` BUILD SUCCESSFUL。
 - 未向设备写屏；应用新排版需要在 Mac/Android 明确应用一次布局（全刷）。CDI 仍停用，设备继续温度块固件。
+
+## 2026-11-08 UI Phase 2 8px 网格
+
+- 左栏统一 504（24…528），分隔线 536，右栏 544…776（232）；header 日期 240、天气 544；右栏卡片统一 544/232。
+- 万年历右侧改为 328…776 的 7×64 网格（448 宽）；日期 20px，今天框与底部分隔线同步移动。
+- `config/refresh_regions.json` 同步更新并重新生成 `firmware/src/refresh_regions.h`；`autonomy_geometry.h` 的天气矩形改为 544/232/66，避免自主天气覆盖与客户端 4px 错位。
+- `ReadabilityTest` / `ReadabilityChecks` 的六行日历与卡片边界断言更新为新坐标；Mac 构建与 `sh tools/test.sh` 通过，Android `assembleDebug` 通过，默认固件编译 SUCCESS。
+- 未写屏；应用新布局需要一次明确全刷。pomodoro 与 custom 的特殊几何本轮未改。
