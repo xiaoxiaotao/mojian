@@ -194,9 +194,9 @@ void EPD_WhiteScreen_ALL(const unsigned char* datasBW,const unsigned char* datas
 	  {
 	    EPD_W21_WriteDATA(staticAccent?staticAccentWire(i,accentStyle):(pages?(*pages)[i]:(datasRW?datasRW[i]:0x00)));  //Transfer the actual displayed data
 	  }
-#ifdef MOJIAN_EXPERIMENT_GX_FULL
-    // Same register block as GxEPD2 _Update_Full, applied before refresh.
-    applyGxFullRefreshSettings(EPD_W21_WriteCMD,EPD_W21_WriteDATA);
+#ifdef MOJIAN_EXPERIMENT_GX_FULL_TEMP
+    // Only the temperature sensor block that the vendor full path omits.
+    applyGxFullTemperatureSettings(EPD_W21_WriteCMD,EPD_W21_WriteDATA);
 #endif
     EPD_Update();
 

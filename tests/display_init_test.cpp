@@ -60,13 +60,11 @@ int main(){
  testTransfers.clear();EPD_Differential_Rect(oldFrame,paged,0,39,800,3);sameTransfers(flatPartial);
  testTransfers.clear();EPD_WhiteScreen_ALL(newFrame,nullptr,nullptr,true,0);auto flatFull=testTransfers;
  auto full=commands();
-#ifdef MOJIAN_EXPERIMENT_GX_FULL
- assert(full.size()==7);
- assert(full[2].value==0x00&&full[2].data==std::vector<unsigned char>({0x0f}));
- assert(full[3].value==0x50&&full[3].data==std::vector<unsigned char>({0x13,0x07}));
- assert(full[4].value==0xE0&&full[4].data==std::vector<unsigned char>({0x00}));
- assert(full[5].value==0x41&&full[5].data==std::vector<unsigned char>({0x00}));
- assert(full[6].value==0x12);
+#ifdef MOJIAN_EXPERIMENT_GX_FULL_TEMP
+ assert(full.size()==5);
+ assert(full[2].value==0xE0&&full[2].data==std::vector<unsigned char>({0x00}));
+ assert(full[3].value==0x41&&full[3].data==std::vector<unsigned char>({0x00}));
+ assert(full[4].value==0x12);
 #else
  assert(full.size()==3&&full[0].value==0x10&&full[1].value==0x13&&full[2].value==0x12);
 #endif

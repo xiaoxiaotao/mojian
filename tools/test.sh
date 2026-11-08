@@ -28,7 +28,7 @@ for variant in production sleep init gx_full; do
     production) experiment_flag="" ;;
     sleep) experiment_flag="-DMOJIAN_EXPERIMENT_BW_SLEEP=1" ;;
     init) experiment_flag="-DMOJIAN_EXPERIMENT_BW_INIT=1" ;;
-    gx_full) experiment_flag="-DMOJIAN_EXPERIMENT_GX_FULL=1" ;;
+    gx_full) experiment_flag="-DMOJIAN_EXPERIMENT_GX_FULL_TEMP=1" ;;
   esac
   "${CXX:-c++}" -std=c++17 ${experiment_flag:+"$experiment_flag"} -I"$TASK_ROOT/tests/display_stubs" -I"$TASK_ROOT/firmware/src" \
     "$TASK_ROOT/tests/display_init_test.cpp" "$TASK_ROOT/firmware/src/EPD.cpp" "$TASK_ROOT/firmware/src/EPD_SPI.cpp" -o "$TEST_DIR/display_init_$variant"

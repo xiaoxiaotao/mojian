@@ -8,10 +8,8 @@ void command(unsigned char value){trace.push_back({true,value});}
 void data(unsigned char value){trace.push_back({false,value});}
 
 int main(){
- applyGxFullRefreshSettings(command,data);
+ applyGxFullTemperatureSettings(command,data);
  const Write expected[]={
-  {true,0x00},{false,0x0f},
-  {true,0x50},{false,0x13},{false,0x07},
   {true,0xE0},{false,0x00},
   {true,0x41},{false,0x00}
  };
