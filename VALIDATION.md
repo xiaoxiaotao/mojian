@@ -377,3 +377,10 @@ Mac0.4.12/build23、Android0.8.4/code25已构建安装。长股票名与空名�
 - `config/refresh_regions.json` 同步更新并重新生成 `firmware/src/refresh_regions.h`；`autonomy_geometry.h` 的天气矩形改为 544/232/66，避免自主天气覆盖与客户端 4px 错位。
 - `ReadabilityTest` / `ReadabilityChecks` 的六行日历与卡片边界断言更新为新坐标；Mac 构建与 `sh tools/test.sh` 通过，Android `assembleDebug` 通过，默认固件编译 SUCCESS。
 - 未写屏；应用新布局需要一次明确全刷。pomodoro 与 custom 的特殊几何本轮未改。
+
+## 2026-11-08 红色品牌横带 A 部署
+
+- 按方案 A 修改 `tools/generate_static_accent.swift`：方章 20×20/2px、`墨间`16px、2px 短线 x=112…240、模式标签 15px；删除 9px `MOJIAN` 与 3px 红点。重生成 8 套 Mac PNG 和 `firmware/src/static_accent.h`。
+- 实际红像素 1096–1238（改前 896–1000），仍约占整屏 0.3%；红带仍为 y=80…103，局刷窗口不跨入。
+- 烧录 `esp32-l-gx-full-temp-ab` 到应用分区，hash verified；全刷事务 `08cf1f67-00000001` completed，等待 29,657 ms；基准恢复、无故障/超时，布局/清单/红带保留。
+- 本次使用设备旧布局帧全刷，**只验证红色资源**；8px 网格新布局仍需 Mac/Android 明确应用一次。实屏红色观感待用户确认。
