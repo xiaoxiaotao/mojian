@@ -114,9 +114,9 @@ private struct Painter {
         if let stamp=c.quotes.map({$0.asOf}).min(),stamp.count==14 {
             time=String(stamp.dropFirst(4).prefix(2))+"/"+String(stamp.dropFirst(6).prefix(2))+" "+String(stamp.dropFirst(8).prefix(2))+":"+String(stamp.dropFirst(10).prefix(2))
         }
-        text("自选行情 · 可能延迟",24,404,14,210,18)
-        text("天气 Open-Meteo",260,404,14,220,18)
-        text(time,572,404,14,204,18)
+        text("行情可能延迟",24,404,15,210,18)
+        text("天气 Open-Meteo",260,404,15,220,18)
+        text(time,572,404,15,204,18)
         rule(24,422,752)
         for i in 0..<5 {
             let x:CGFloat=24+CGFloat(i)*152
@@ -235,13 +235,13 @@ private struct Painter {
         weatherLine(24,405,280)
         rule(316,118,344,true)
         let illustrated=c.settings.info.artwork == true
-        if illustrated{landscape(346,118,430,115);text(["冬山藏雪","春山初醒","夏山听雨","秋山有信"][(WorkSchedule.calendar.component(.month,from:c.now)%12)/3]+" · 内置插画",346,240,16,430,24)}else{text(dateText(c.now,"yyyy / MM"),346,116,24,430,40,true)}
+        if illustrated{landscape(346,118,430,115);text(["冬山藏雪","春山初醒","夏山听雨","秋山有信"][(WorkSchedule.calendar.component(.month,from:c.now)%12)/3]+" · 内置插画",346,240,16,430,24)}else{text("月历",346,116,16,430,40,true)}
         var cal=Calendar(identifier:.gregorian);cal.timeZone=TimeZone(identifier:"Asia/Shanghai")!;let components=cal.dateComponents([.year,.month],from:c.now);let first=cal.date(from:components)!;let offset=(cal.component(.weekday,from:first)+5)%7;let days=cal.range(of:.day,in:.month,for:first)!
         for (i,day) in ["一","二","三","四","五","六","日"].enumerated(){text(day,346+CGFloat(i)*62,illustrated ? 264:163,16,58)}
         for day in days {let position=offset+day-1;let x=346+CGFloat(position%7)*62;let y=(illustrated ? 290:202)+CGFloat(position/7)*(illustrated ? 22:35)
             if day==cal.component(.day,from:c.now){outline(x-6,y-2,43,illustrated ? 22:31)}
-            text("\(day)",x,y,18,50,23,day==cal.component(.day,from:c.now))
-            if let date=cal.date(byAdding:.day,value:day-1,to:first),let marker=CalendarData.marker(date){text(marker,x+30,y+2,13,20,20)}
+            text("\(day)",x,y,20,50,23,day==cal.component(.day,from:c.now))
+            if let date=cal.date(byAdding:.day,value:day-1,to:first),let marker=CalendarData.marker(date){text(marker,x+30,y+2,14,20,20)}
         }
         rule(346,425,430);text(InformationLogic.nearest(c.settings.info.dates,at:c.now).map{InformationLogic.countdown($0,at:c.now).replacingOccurrences(of:"\n",with:" · ")} ?? CalendarData.nextTerm(c.now) ?? c.settings.note,346,441,17,430,34)
     }

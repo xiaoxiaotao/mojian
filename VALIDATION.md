@@ -360,3 +360,10 @@ Mac0.4.12/build23、Android0.8.4/code25已构建安装。长股票名与空名�
 - 回退到温度块并全刷后，用户确认**目前没有残影**，但仍需继续观察。CDI 实验保持停用。
 - 回退后约 27 分钟只读状态：`gx-full-temp-2026-11-08`、`baseline_ready=true`、`display_fault=false`、超时 0；31 次刷新命令全部完成、30 个差分窗口；最近局刷约 1,448 ms；heap free 约 69.6 KB，最小 24.4 KB，最大块 30.7 KB。
 - 回退后 600 秒只读观察：55 个样本，0 读取错误、0 重启；基准始终有效，12 种帧哈希，新增 11 个差分窗口并全部完成。该状态只说明短时干净；不证明长期无残影，仍以用户实屏观察为准。
+
+## 2026-11-08 UI Phase 1 构建与预览
+
+- 行情区辅助字 14→15px，文案改为“行情可能延迟”；保留行情三行 16/18/16px 的可读性约定。Mac 与 Android 同步。
+- Mac 万年历右侧重复月份改为“月历”16px；日期 18→20px、`休` 13→14px。Android 日历仍为 18px/22px 行距，六行测试限制下留给 Phase 2 网格重排。
+- Mac 已重新构建 `dist/墨间.app`，`sh tools/test.sh` 通过，并用 `--render-previews docs/images` 重新生成虚构预览。Android `assembleDebug` BUILD SUCCESSFUL。
+- 未向设备写屏；应用新排版需要在 Mac/Android 明确应用一次布局（全刷）。CDI 仍停用，设备继续温度块固件。
