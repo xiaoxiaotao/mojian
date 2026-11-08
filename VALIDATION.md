@@ -338,3 +338,11 @@ Mac0.4.12/build23、Android0.8.4/code25已构建安装。长股票名与空名�
 - 已回退到 `esp32-l-gx-full-temp-ab` 并重新全刷（事务 `a577c6d4-00000001` completed，等待 29,657 ms），基准恢复、无故障/超时；画面是否完全恢复由用户确认。
 - 修正 `gxFullCdiRedWire()`：带内仍取反，带外显式写 `0xFF`（白）。`gx_full_settings` 与 `display_init` 的 `gx_full_cdi` 断言已更新，配置编译通过。修正版**尚未再次烧录**。
 - 结论：CDI 实验不能只反相带内；带外必须按 `0x13` 的极性填白。该失败说明寄存器极性推导必须配合完整平面填充，不能只看红带。
+
+## 2026-11-08 0x50 极性实验修正版部署
+
+- 修正 `gxFullCdiRedWire()` 带外写 `0xFF` 后，重新烧录 `esp32-l-gx-full-cdi-ab` 到应用分区 0x10000；写入 1,388,224 字节并 hash verified，未写 NVS/LittleFS。
+- 重启后 health：`gx-full-cdi-2026-11-08` / `gxepd2-full-cdi`，存储正常、无显示故障、基准待重建。读取快照后执行一次明确全刷，事务 `fc9c407a-00000001` completed，等待 29,654 ms；`baseline_ready=true`、无故障/超时。
+- 布局、任务、`content_key`、`accent_style` 与烧录前一致；红带 y=80…103 全白；影子帧 264 字节变化，边界 x=128…719、y=10…73，仅时钟/天气区域。
+- 全刷后 180 秒只读观察：18 个样本，0 读取错误、0 重启；基准始终有效，新增 3 个差分窗口并全部完成。
+- 黑白影子帧仍不能证明红色平面颜色。用户需确认背景为白、品牌带为正红而不是整屏红底；若仍异常，立即回退温度块。私有证据在 `data/connection-2026-11-08/gx-full-cdi-fixed/`。
