@@ -5,6 +5,7 @@
 - [设备发现与恢复](DEVICE_DISCOVERY.md)
 - [屏幕字体与许可](SCREEN_FONTS.md)
 - [800×480 墨水屏 UI 优化建议](UI_OPTIMIZATION_2026-11-08.md)
+- [红色怎么安排：品牌横带方案研究](RED_DESIGN_2026-11-08.md)
 - [显示更新诊断](DISPLAY_DIAGNOSTICS.md)
 - [同型号参考驱动对照](REFERENCE_DISPLAY_TEST.md)
 - [全刷寄存器对照实验](DISPLAY_FULL_REFRESH_AB.md)
