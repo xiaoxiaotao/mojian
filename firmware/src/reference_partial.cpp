@@ -33,7 +33,7 @@ bool referencePartialRect(const uint8_t* previous,const PagedPlane& current,
  referencePanel.writeImagePartToPrevious(previous,x,y,800,480,x,y,w,h);
  writePages(current,x,y,w,h,false);
  if(displayGuard.failed)return false;
- ++displayTelemetry.differentialWindows;
+ ++displayTelemetry.differentialWindows;++displayTelemetry.partialWindowsSinceFull;displayTelemetry.partialAreaSinceFull+=w*h;
  referencePanel.refresh_bw(x,y,w,h);
  if(displayGuard.failed)return false;
  writePages(current,x,y,w,h,true);

@@ -439,3 +439,5 @@ Mac0.4.12/build23、Android0.8.4/code25已构建安装。长股票名与空名�
 - 遥测新增 `display_autonomy_windows`、`display_commit_windows`、`display_clock_windows`、`display_full_refreshes`；`test_autonomy_dispatch` 增加无红/红布局的 accent 断言，`sh tools/test.sh` 通过。
 - 默认 `esp32-l` 清理后烧录；无红全刷 `52aacb00-00000001` completed，基准恢复，无故障/超时。当前 `display_full_refreshes=1`、`commit_windows=1`、`autonomy_windows=3`、`differential_windows=2`，自主局刷在无红布局下正常增量。
 - 当前屏幕无红色、客户端关闭；观察约 9 小时（至 05:00 左右）横带是否复现。若不再出现，说明带区域被排除/硬编码 accent 是重要因素；若仍出现，则更偏面板/红颜料残留。此修复不恢复红色，也不改变红布局下带区域仍靠全刷/局部全刷的结论。
+
+- 2026-11-10 继续补遥测：新增 `partialWindowsSinceFull` / `partialAreaSinceFull`，每次局部窗口按 `w*h` 累加，全刷时清零；health 暴露 `display_partial_windows_since_full`、`display_partial_area_since_full`、`display_full_area_budget`。默认预算常量为 5 个整屏面积（`5×800×480`）。host 测试与默认固件构建通过；为避免打断当前无红观察，尚未烧录该遥测版本。

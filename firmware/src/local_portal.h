@@ -64,7 +64,7 @@ bool localValidateMetadata(const String& metadata){
 }
 bool localPaint(const PagedPlane& bytes,bool full,bool flexible=false,bool accent=false,unsigned accentStyle=0){
  if(displayGuard.failed&&!full){hasBase=false;return false;}
- if(full)displayGuard.reset();
+ if(full){displayGuard.reset();displayTelemetry.partialWindowsSinceFull=0;displayTelemetry.partialAreaSinceFull=0;}
 #ifdef MOJIAN_EXPERIMENT_GX_REFERENCE
  bool referenceOkay=true;
  if(full)SPI.beginTransaction(SPISettings(10000000,MSBFIRST,SPI_MODE0));
@@ -253,7 +253,7 @@ void setupLocalPortal(){
   j["display_experiment"]="bw-corrected-init-2026-10-31";
 #endif
   // Independent atomic samples; not an atomic transaction snapshot or receipt.
-  j["display_refresh_commands"]=displayTelemetry.refreshCommands.load();j["display_refresh_completed"]=displayTelemetry.refreshCompleted.load();j["display_differential_windows"]=displayTelemetry.differentialWindows.load();j["display_autonomy_windows"]=displayTelemetry.autonomyWindows.load();j["display_commit_windows"]=displayTelemetry.commitWindows.load();j["display_clock_windows"]=displayTelemetry.clockWindows.load();j["display_full_refreshes"]=displayTelemetry.fullRefreshes.load();j["display_last_refresh_wait_ms"]=displayTelemetry.lastRefreshWaitMs.load();j["display_normal_poweroff_waits"]=displayTelemetry.powerOffWaits.load();j["display_last_poweroff_wait_ms"]=displayTelemetry.lastPowerOffWaitMs.load();j["display_last_poweroff_busy_ready"]=displayTelemetry.lastPowerOffBusyReady.load();j["display_last_poweroff_busy_seen"]=displayTelemetry.lastPowerOffBusySeen.load();
+  j["display_refresh_commands"]=displayTelemetry.refreshCommands.load();j["display_refresh_completed"]=displayTelemetry.refreshCompleted.load();j["display_differential_windows"]=displayTelemetry.differentialWindows.load();j["display_autonomy_windows"]=displayTelemetry.autonomyWindows.load();j["display_commit_windows"]=displayTelemetry.commitWindows.load();j["display_clock_windows"]=displayTelemetry.clockWindows.load();j["display_full_refreshes"]=displayTelemetry.fullRefreshes.load();j["display_partial_windows_since_full"]=displayTelemetry.partialWindowsSinceFull.load();j["display_partial_area_since_full"]=displayTelemetry.partialAreaSinceFull.load();j["display_full_area_budget"]=displayTelemetry.kFullAreaBudget;j["display_last_refresh_wait_ms"]=displayTelemetry.lastRefreshWaitMs.load();j["display_normal_poweroff_waits"]=displayTelemetry.powerOffWaits.load();j["display_last_poweroff_wait_ms"]=displayTelemetry.lastPowerOffWaitMs.load();j["display_last_poweroff_busy_ready"]=displayTelemetry.lastPowerOffBusyReady.load();j["display_last_poweroff_busy_seen"]=displayTelemetry.lastPowerOffBusySeen.load();
   j["frame_page_bytes"]=PagedPlane::PAGE_BYTES;j["frame_page_count"]=PagedPlane::PAGE_COUNT;j["frame_buffer_active"]=localIncoming!=nullptr;
   j["baseline_reason"]=localBaselineReady()?"ready":(!storageReady?"storage_unavailable":((drawing?localPaintJob.fault:displayGuard.failed)?"display_fault":(localMode?"restart_requires_explicit_refresh":"layout_not_applied")));
   String body;serializeJson(j,body);deviceWeb.sendHeader("Cache-Control","no-store");deviceWeb.send(200,"application/json",body);

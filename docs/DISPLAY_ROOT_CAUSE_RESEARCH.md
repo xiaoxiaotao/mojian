@@ -113,3 +113,8 @@
 - 自主局刷 `accent` 改为 `localRedLayout(localLayoutID.c_str())`，无红布局允许局刷覆盖带区域，红布局仍排除。
 - 遥测新增自主/提交/时钟局刷和全刷计数；`test_autonomy_dispatch` 覆盖无红/红 accent 分支，全量测试通过。
 - 默认固件已烧录，无红全刷 `52aacb00` completed；观察约 9 小时是否复现。该修复只验证“带区域被排除”这一因素，不恢复红色，也不替代红布局的局部全刷/维护全刷。
+
+### 面积预算遥测（2026-11-10）
+
+- `DisplayTelemetry` 增加 `partialWindowsSinceFull`、`partialAreaSinceFull`，局部窗口按 `w*h` 累加，全刷清零；health 暴露窗口/面积和 `display_full_area_budget=5*800*480`。
+- 这为“5 个整屏等效面积后维护全刷”提供直接依据，避免按每分钟小窗口数误触发每 5 分钟全刷。host 测试/默认构建通过；等当前无红观察结束后再烧录验证。

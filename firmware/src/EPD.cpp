@@ -656,7 +656,7 @@ void EPD_Init_Differential(void){
 #include "differential_transfer.h"
 template<class NewImage> void differentialRectImpl(const unsigned char* oldImage,const NewImage& newImage,unsigned int x,unsigned int y,unsigned int w,unsigned int h){
  differentialImages(oldImage,newImage,x,y,w,h,EPD_W21_WriteCMD,EPD_W21_WriteDATA);
- if(!displayGuard.failed)++displayTelemetry.differentialWindows;
+ if(!displayGuard.failed){++displayTelemetry.differentialWindows;++displayTelemetry.partialWindowsSinceFull;displayTelemetry.partialAreaSinceFull+=w*h;}
  EPD_Update();EPD_W21_WriteCMD(0x92);
  // Synchronize previous RAM after the visible transition, matching GxEPD2.
  differentialWindow(x,y,w,h,EPD_W21_WriteCMD,EPD_W21_WriteDATA);
