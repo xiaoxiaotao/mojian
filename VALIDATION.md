@@ -441,3 +441,5 @@ Mac0.4.12/build23、Android0.8.4/code25已构建安装。长股票名与空名�
 - 当前屏幕无红色、客户端关闭；观察约 9 小时（至 05:00 左右）横带是否复现。若不再出现，说明带区域被排除/硬编码 accent 是重要因素；若仍出现，则更偏面板/红颜料残留。此修复不恢复红色，也不改变红布局下带区域仍靠全刷/局部全刷的结论。
 
 - 2026-11-10 继续补遥测：新增 `partialWindowsSinceFull` / `partialAreaSinceFull`，每次局部窗口按 `w*h` 累加，全刷时清零；health 暴露 `display_partial_windows_since_full`、`display_partial_area_since_full`、`display_full_area_budget`。默认预算常量为 5 个整屏面积（`5×800×480`）。host 测试与默认固件构建通过；为避免打断当前无红观察，尚未烧录该遥测版本。
+
+- 2026-11-10 面积遥测首笔：全刷后一次自主时钟局刷 `partial_windows_since_full=1`、`partial_area_since_full=352 px`；5 个整屏面积预算为 `1,920,000 px`。按这个速率面积预算要九十多个小时才触发，说明**面积不是官方“5 次局刷”的正确口径**：官方计的是局刷循环次数，不是改动像素面积。面积可用于功耗/电荷评估，但维护全刷应按事件或时间预算。

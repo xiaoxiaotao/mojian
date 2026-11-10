@@ -5,7 +5,7 @@
 ## 固件局刷来源计数与无红带刷新（2026-11-10）
 
 - 修复自主局刷硬编码 `accent=true`：改为按当前布局是否红版决定。无红布局的局刷现在可覆盖 `y=80…103` 带区域；红布局仍排除，靠全刷/局部全刷。
-- 遥测新增 `display_autonomy_windows`、`display_commit_windows`、`display_clock_windows`、`display_full_refreshes`，以及全刷后累计的 `display_partial_windows_since_full`、`display_partial_area_since_full`、`display_full_area_budget`（5 个整屏面积），为“5 次局刷后全刷”的预算提供分账。
+- 遥测新增 `display_autonomy_windows`、`display_commit_windows`、`display_clock_windows`、`display_full_refreshes`，以及全刷后累计的 `display_partial_windows_since_full`、`display_partial_area_since_full`、`display_full_area_budget`（5 个整屏面积），为“5 次局刷后全刷”的预算提供分账；首笔时钟局刷仅 352 px，验证面积不能直接当“5 次”口径。
 - `test_autonomy_dispatch` 增加无红/红布局 accent 断言；全量测试、默认固件构建/烧录、无红全刷均通过。当前无红观察中。
 
 ## 红色品牌横带 A（2026-11-08）
