@@ -443,3 +443,11 @@ Mac0.4.12/build23、Android0.8.4/code25已构建安装。长股票名与空名�
 - 2026-11-10 继续补遥测：新增 `partialWindowsSinceFull` / `partialAreaSinceFull`，每次局部窗口按 `w*h` 累加，全刷时清零；health 暴露 `display_partial_windows_since_full`、`display_partial_area_since_full`、`display_full_area_budget`。默认预算常量为 5 个整屏面积（`5×800×480`）。host 测试与默认固件构建通过；为避免打断当前无红观察，尚未烧录该遥测版本。
 
 - 2026-11-10 面积遥测首笔：全刷后一次自主时钟局刷 `partial_windows_since_full=1`、`partial_area_since_full=352 px`；5 个整屏面积预算为 `1,920,000 px`。按这个速率面积预算要九十多个小时才触发，说明**面积不是官方“5 次局刷”的正确口径**：官方计的是局刷循环次数，不是改动像素面积。面积可用于功耗/电荷评估，但维护全刷应按事件或时间预算。
+
+## 2026-11-10 维护全刷策略与 60 分钟观察
+
+- 新增可选 `MOJIAN_MAINTENANCE_FULL_MINUTES`，默认 0（关闭）；`esp32-l-maintenance=60` 为实验环境，`esp32-l-maintenance-fast=1` 仅用于代码路径测试。
+- 修正时间常数：最初误写成 `60×60×1000×分钟`（实际按小时），已改为 `分钟×60×1000`。
+- 1 分钟版实测：红日历全刷后 80 秒内 `display_full_refreshes` 从 1→2，自动全刷路径生效，基准保持、无故障。
+- 已恢复 `esp32-l-maintenance`（60 分钟）并回到 `mac.calendar.red-v2` 红 A 日历；20:40:48 干净全刷，`baseline_ready=true`，`display_maintenance_full_minutes=60`。首次自动维护全刷预计 21:40 左右，观察横带是否被压住。
+- 默认构建仍关闭维护全刷；是否启用 60 分钟版本需要产品决策，不能把实验环境当正式默认。

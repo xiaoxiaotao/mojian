@@ -42,6 +42,11 @@ void fetchAutoWeather(void* context){AutoJob job=*(AutoJob*)context;delete (Auto
  Serial.printf("Autonomous weather: http=%d tls=%d ok=%d heap=%u\n",result.httpStatus,result.tlsError,result.ok,ESP.getFreeHeap());
  portENTER_CRITICAL(&autoMux);autoResult=result;autoResultReady=true;portEXIT_CRITICAL(&autoMux);vTaskDelete(nullptr);
 }
+#ifndef MOJIAN_MAINTENANCE_FULL_MINUTES
+#define MOJIAN_MAINTENANCE_FULL_MINUTES 0
+#endif
+constexpr unsigned long kMaintenanceFullMs=60UL*1000UL*MOJIAN_MAINTENANCE_FULL_MINUTES;
+unsigned long autoLastFullMs=0;
 bool autoSave(){JsonDocument j;j["enabled"]=autoEnabled;j["latitude"]=autoLatitude;j["longitude"]=autoLongitude;unsigned char b64[440];size_t written=0;mbedtls_base64_encode(b64,sizeof b64,&written,autoCity,sizeof autoCity);j["city_bitmap"]=String((char*)b64,written);if(autoCache.ok){j["temperature"]=autoCache.temperature;j["code"]=autoCache.code;j["fetched"]=(long long)autoCache.fetched;}File f=LittleFS.open("/autonomy.tmp","w");if(f){bool ok=serializeJson(j,f)>0;f.flush();f.close();return ok&&LittleFS.rename("/autonomy.tmp","/autonomy.json");}return false;}
 void setupAutonomy(){memset(autoCity,255,sizeof autoCity);File f=LittleFS.open("/autonomy.json","r");if(f){JsonDocument j;if(!deserializeJson(j,f)){autoEnabled=j["enabled"]|false;autoLatitude=j["latitude"]|31.3;autoLongitude=j["longitude"]|120.58;String city=j["city_bitmap"]|"";size_t length=0;mbedtls_base64_decode(autoCity,sizeof autoCity,&length,(const unsigned char*)city.c_str(),city.length());if(j["fetched"].is<long long>()){autoCache.ok=true;autoCache.temperature=j["temperature"]|0.f;autoCache.code=j["code"]|0;autoCache.fetched=(time_t)j["fetched"].as<long long>();}}f.close();}
  deviceWeb.on("/api/local/autonomy",HTTP_GET,[]{JsonDocument j;j["supported"]=true;j["enabled"]=autoEnabled;j["clock_ready"]=time(nullptr)>1577836800LL;j["baseline_ready"]=localBaselineReady();j["display_busy"]=localDisplayBusy();j["weather_available"]=autoCache.ok;j["weather_fetched"]=(long long)autoCache.fetched;j["fetching"]=autoFetching;j["error"]=autoError;j["weather_http"]=autoLastHTTP;j["weather_tls"]=autoLastTLS;j["weather_address"]=IPAddress(autoLastAddress).toString();j["epoch_seconds"]=(long long)time(nullptr);String text;serializeJson(j,text);deviceWeb.sendHeader("Cache-Control","no-store");deviceWeb.send(200,"application/json",text);});
@@ -54,6 +59,16 @@ void updateAutonomy(){
  if(localDisplayBusy()||!autoEnabled||!localMode||localIncoming||provisionAttempt||autoFetching)return;
  if(NimBLEDevice::getInitialized()&&NimBLEDevice::getServer()&&NimBLEDevice::getServer()->getConnectedCount()>0)return;
  time_t now=time(nullptr);
+ if(autoLastFullMs==0)autoLastFullMs=millis();
+ if(MOJIAN_MAINTENANCE_FULL_MINUTES>0&&hasBase&&!displayGuard.failed&&(int32_t)(millis()-autoLastFullMs)>=0&&millis()-autoLastFullMs>=kMaintenanceFullMs){
+  if(localAcquireFrame()){
+   localIncoming->write(0,PartImage,PLANE_BYTES);overlayAutonomy(*localIncoming,localLayoutID);
+   bool accent=localRedLayout(localLayoutID.c_str());int style=localAccentStyle();
+   autoLastFullMs=millis();
+   if(!startLocalPaint(PaintAutonomy,true,false,accent,style,now/60))localRelease();
+   return;
+  }
+ }
  // Fetching data is independent from permission to drive the panel. A reboot
  // or latched display fault still requires explicit baseline recovery.
  if(hasBase&&!displayGuard.failed&&now>=1577836800LL&&autoMinute!=now/60){

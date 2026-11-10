@@ -23,6 +23,8 @@ STUBS=r'''
 #define portEXIT_CRITICAL(x) ((void)0)
 #define time(...) testEpoch
 constexpr int WL_CONNECTED=3,pdPASS=1,PaintAutonomy=1;
+#define MOJIAN_MAINTENANCE_FULL_MINUTES 0
+unsigned long autoLastFullMs=0;constexpr unsigned long kMaintenanceFullMs=0;
 struct AutoWeather{bool ok=false;int httpStatus=0,tlsError=0;uint32_t address=0;};
 struct AutoJob{double latitude,longitude;};
 struct Plane{void write(unsigned,const unsigned char*,unsigned){}} plane;
@@ -37,6 +39,7 @@ uint32_t autoLastAddress=0,autoNextFetch=0,clockMS=1000;
 time_t testEpoch=1800000000,autoMinute=-1;
 double autoLatitude=31.,autoLongitude=120.;std::string autoError,localLayoutID;bool lastAccent=false;
 bool localRedLayout(const char* layout){return layout&&std::string(layout).find(".red-v2")!=std::string::npos;}
+int localAccentStyle(){return 0;}
 uint32_t millis(){return clockMS;}
 bool autoSave(){++saved;return true;}
 bool localDisplayBusy(){return busy;}
