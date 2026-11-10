@@ -35,25 +35,27 @@ bool autoResultReady=false,autoFetching=false,autoEnabled=true,localMode=true,ha
 AutoWeather autoResult,autoCache;int autoMux=0,autoLastHTTP=0,autoLastTLS=0,saved=0,paints=0,fetches=0,overlays=0,acquires=0,releases=0;
 uint32_t autoLastAddress=0,autoNextFetch=0,clockMS=1000;
 time_t testEpoch=1800000000,autoMinute=-1;
-double autoLatitude=31.,autoLongitude=120.;std::string autoError,localLayoutID;
+double autoLatitude=31.,autoLongitude=120.;std::string autoError,localLayoutID;bool lastAccent=false;
+bool localRedLayout(const char* layout){return layout&&std::string(layout).find(".red-v2")!=std::string::npos;}
 uint32_t millis(){return clockMS;}
 bool autoSave(){++saved;return true;}
 bool localDisplayBusy(){return busy;}
 bool localAcquireFrame(){++acquires;localIncoming=allocationOK?&plane:nullptr;return allocationOK;}
 void localRelease(){++releases;localIncoming=nullptr;}
 void overlayAutonomy(Plane&,const std::string&){++overlays;}
-bool startLocalPaint(int,bool full,bool,bool,unsigned,time_t){assert(!full);++paints;return paintOK;}
+bool startLocalPaint(int,bool full,bool,bool accent,unsigned,time_t){assert(!full);lastAccent=accent;++paints;return paintOK;}
 void localSuspendBle(){bleSuspended=true;}
 void fetchAutoWeather(void*){}
 int xTaskCreate(void(*)(void*),const char*,int,void* job,int,void*){++fetches;if(taskOK){delete static_cast<AutoJob*>(job);return pdPASS;}return 0;}
-void reset(){autoResultReady=autoFetching=bleSuspended=localRestartBle=busy=provisionAttempt=server.connected=false;autoEnabled=localMode=hasBase=allocationOK=paintOK=taskOK=WiFi.online=true;localIncoming=nullptr;displayGuard.failed=false;autoResult=autoCache=AutoWeather();autoLastHTTP=autoLastTLS=saved=paints=fetches=overlays=acquires=releases=0;clockMS=1000;autoNextFetch=0;testEpoch=1800000000;autoMinute=-1;autoError="";}
+void reset(){autoResultReady=autoFetching=bleSuspended=localRestartBle=busy=provisionAttempt=server.connected=false;autoEnabled=localMode=hasBase=allocationOK=paintOK=taskOK=WiFi.online=true;localIncoming=nullptr;displayGuard.failed=false;autoResult=autoCache=AutoWeather();autoLastHTTP=autoLastTLS=saved=paints=fetches=overlays=acquires=releases=0;clockMS=1000;autoNextFetch=0;testEpoch=1800000000;autoMinute=-1;autoError="";localLayoutID.clear();lastAccent=false;}
 '''
 CHECKS=r'''
 int main(){
  reset();hasBase=false;updateAutonomy();assert(fetches==1&&autoFetching&&paints==0&&acquires==0&&!hasBase);
  autoResultReady=true;autoResult.ok=true;autoResult.httpStatus=200;updateAutonomy();assert(saved==1&&autoCache.ok&&autoLastHTTP==200&&!autoFetching&&!hasBase&&paints==0&&localRestartBle);
  reset();displayGuard.failed=true;updateAutonomy();assert(fetches==1&&paints==0&&acquires==0&&displayGuard.failed);
- reset();updateAutonomy();assert(paints==1&&overlays==1&&fetches==0&&localIncoming);
+ reset();updateAutonomy();assert(paints==1&&overlays==1&&fetches==0&&localIncoming&&!lastAccent);
+ reset();localLayoutID="mac.calendar.red-v2";updateAutonomy();assert(paints==1&&lastAccent);
  reset();allocationOK=false;updateAutonomy();assert(paints==0&&fetches==1&&autoFetching);
  for(int guard=0;guard<6;guard++){reset();if(guard==0)busy=true;if(guard==1)localIncoming=&plane;if(guard==2)provisionAttempt=true;if(guard==3)autoFetching=true;if(guard==4)autoEnabled=false;if(guard==5)localMode=false;updateAutonomy();assert(!paints&&!fetches&&!acquires);}
  reset();hasBase=false;server.connected=true;updateAutonomy();assert(!fetches&&!paints);

@@ -2,6 +2,12 @@
 
 版本按各客户端独立编号。当前为开发验证阶段。
 
+## 固件局刷来源计数与无红带刷新（2026-11-10）
+
+- 修复自主局刷硬编码 `accent=true`：改为按当前布局是否红版决定。无红布局的局刷现在可覆盖 `y=80…103` 带区域；红布局仍排除，靠全刷/局部全刷。
+- 遥测新增 `display_autonomy_windows`、`display_commit_windows`、`display_clock_windows`、`display_full_refreshes`，为“5 次局刷后全刷”的预算提供分账。
+- `test_autonomy_dispatch` 增加无红/红布局 accent 断言；全量测试、默认固件构建/烧录、无红全刷均通过。当前无红观察中。
+
 ## 红色品牌横带 A（2026-11-08）
 
 - 按方案 A 重生成 8 套静态红色资源：方章 2px 边、`墨间`16px、2px 短线、模式标签 15px；删除 9px `MOJIAN` 与孤立红点。

@@ -432,3 +432,10 @@ Mac0.4.12/build23、Android0.8.4/code25已构建安装。长股票名与空名�
 - 无红期间横带没有自然衰减；黑白影子帧仍全白、无黑像素。进一步确认是面板/红颜料 image sticking，而非渲染数据、红色 A/B 构图或温度块。
 - 19:55 左右执行一次无红清理全刷，事务 `cbe131ae-00000193` completed，等待 35.4 秒；基准恢复、无故障/超时，当前屏幕已清掉横带。
 - 清理不是修复：全刷只能暂时清除，之后仍会回来。可选方向：保修/换屏、无红 + 手动维护全刷（约 8–9 小时一次）、或继续做多次全刷/长周期观察；不做自动全刷。
+
+## 2026-11-10 自主局刷 accent 修复与无红复测
+
+- 修复 `firmware/src/autonomy.h`：自主局刷的 `accent` 不再硬编码 `true`，改为 `localRedLayout(localLayoutID.c_str())`；无红布局允许局刷覆盖 `y=80…103`，红布局仍保留带区域。
+- 遥测新增 `display_autonomy_windows`、`display_commit_windows`、`display_clock_windows`、`display_full_refreshes`；`test_autonomy_dispatch` 增加无红/红布局的 accent 断言，`sh tools/test.sh` 通过。
+- 默认 `esp32-l` 清理后烧录；无红全刷 `52aacb00-00000001` completed，基准恢复，无故障/超时。当前 `display_full_refreshes=1`、`commit_windows=1`、`autonomy_windows=3`、`differential_windows=2`，自主局刷在无红布局下正常增量。
+- 当前屏幕无红色、客户端关闭；观察约 9 小时（至 05:00 左右）横带是否复现。若不再出现，说明带区域被排除/硬编码 accent 是重要因素；若仍出现，则更偏面板/红颜料残留。此修复不恢复红色，也不改变红布局下带区域仍靠全刷/局部全刷的结论。

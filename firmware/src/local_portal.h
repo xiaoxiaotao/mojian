@@ -145,6 +145,7 @@ bool startLocalPaint(LocalPaintPurpose purpose,bool full,bool flexible,bool acce
 void finishLocalPaint(){
  unsigned result=localPaintTransaction.result();if(result!=PaintTransaction::Completed&&result!=PaintTransaction::Failed)return;
  bool success=result==PaintTransaction::Completed;
+ if(success){if(localPaintJob.full)++displayTelemetry.fullRefreshes;if(localPaintJob.purpose==PaintAutonomy)++displayTelemetry.autonomyWindows;else if(localPaintJob.purpose==PaintCommit)++displayTelemetry.commitWindows;else if(localPaintJob.purpose==PaintClock)++displayTelemetry.clockWindows;}
  if(localPaintJob.purpose==PaintCommit){
   localMetadata=localPaintJob.metadata;localExternal=localPaintJob.external;localLayoutID=localPaintJob.layout;localMode=true;localSnapshotError=false;
   if(!LittleFS.exists("/local-mode")){File mode=LittleFS.open("/local-mode","w");mode.print("1");mode.close();}
@@ -252,7 +253,7 @@ void setupLocalPortal(){
   j["display_experiment"]="bw-corrected-init-2026-10-31";
 #endif
   // Independent atomic samples; not an atomic transaction snapshot or receipt.
-  j["display_refresh_commands"]=displayTelemetry.refreshCommands.load();j["display_refresh_completed"]=displayTelemetry.refreshCompleted.load();j["display_differential_windows"]=displayTelemetry.differentialWindows.load();j["display_last_refresh_wait_ms"]=displayTelemetry.lastRefreshWaitMs.load();j["display_normal_poweroff_waits"]=displayTelemetry.powerOffWaits.load();j["display_last_poweroff_wait_ms"]=displayTelemetry.lastPowerOffWaitMs.load();j["display_last_poweroff_busy_ready"]=displayTelemetry.lastPowerOffBusyReady.load();j["display_last_poweroff_busy_seen"]=displayTelemetry.lastPowerOffBusySeen.load();
+  j["display_refresh_commands"]=displayTelemetry.refreshCommands.load();j["display_refresh_completed"]=displayTelemetry.refreshCompleted.load();j["display_differential_windows"]=displayTelemetry.differentialWindows.load();j["display_autonomy_windows"]=displayTelemetry.autonomyWindows.load();j["display_commit_windows"]=displayTelemetry.commitWindows.load();j["display_clock_windows"]=displayTelemetry.clockWindows.load();j["display_full_refreshes"]=displayTelemetry.fullRefreshes.load();j["display_last_refresh_wait_ms"]=displayTelemetry.lastRefreshWaitMs.load();j["display_normal_poweroff_waits"]=displayTelemetry.powerOffWaits.load();j["display_last_poweroff_wait_ms"]=displayTelemetry.lastPowerOffWaitMs.load();j["display_last_poweroff_busy_ready"]=displayTelemetry.lastPowerOffBusyReady.load();j["display_last_poweroff_busy_seen"]=displayTelemetry.lastPowerOffBusySeen.load();
   j["frame_page_bytes"]=PagedPlane::PAGE_BYTES;j["frame_page_count"]=PagedPlane::PAGE_COUNT;j["frame_buffer_active"]=localIncoming!=nullptr;
   j["baseline_reason"]=localBaselineReady()?"ready":(!storageReady?"storage_unavailable":((drawing?localPaintJob.fault:displayGuard.failed)?"display_fault":(localMode?"restart_requires_explicit_refresh":"layout_not_applied")));
   String body;serializeJson(j,body);deviceWeb.sendHeader("Cache-Control","no-store");deviceWeb.send(200,"application/json",body);

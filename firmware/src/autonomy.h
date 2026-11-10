@@ -59,7 +59,8 @@ void updateAutonomy(){
  if(hasBase&&!displayGuard.failed&&now>=1577836800LL&&autoMinute!=now/60){
   if(localAcquireFrame()){
    localIncoming->write(0,PartImage,PLANE_BYTES);overlayAutonomy(*localIncoming,localLayoutID);
-   if(!startLocalPaint(PaintAutonomy,false,true,true,0,now/60))localRelease();
+   bool accent=localRedLayout(localLayoutID.c_str());
+   if(!startLocalPaint(PaintAutonomy,false,true,accent,0,now/60))localRelease();
    return;
   }
  }
