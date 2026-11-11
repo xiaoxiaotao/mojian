@@ -1,5 +1,5 @@
 #ifndef MOJIAN_MAINTENANCE_FULL_MINUTES
-#define MOJIAN_MAINTENANCE_FULL_MINUTES 0
+#define MOJIAN_MAINTENANCE_FULL_MINUTES 60
 #endif
 #pragma once
 #include <WebServer.h>

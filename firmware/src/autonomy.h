@@ -43,7 +43,7 @@ void fetchAutoWeather(void* context){AutoJob job=*(AutoJob*)context;delete (Auto
  portENTER_CRITICAL(&autoMux);autoResult=result;autoResultReady=true;portEXIT_CRITICAL(&autoMux);vTaskDelete(nullptr);
 }
 #ifndef MOJIAN_MAINTENANCE_FULL_MINUTES
-#define MOJIAN_MAINTENANCE_FULL_MINUTES 0
+#define MOJIAN_MAINTENANCE_FULL_MINUTES 60
 #endif
 constexpr unsigned long kMaintenanceFullMs=60UL*1000UL*MOJIAN_MAINTENANCE_FULL_MINUTES;
 unsigned long autoLastFullMs=0;

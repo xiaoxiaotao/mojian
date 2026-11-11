@@ -451,3 +451,10 @@ Mac0.4.12/build23、Android0.8.4/code25已构建安装。长股票名与空名�
 - 1 分钟版实测：红日历全刷后 80 秒内 `display_full_refreshes` 从 1→2，自动全刷路径生效，基准保持、无故障。
 - 已恢复 `esp32-l-maintenance`（60 分钟）并回到 `mac.calendar.red-v2` 红 A 日历；20:40:48 干净全刷，`baseline_ready=true`，`display_maintenance_full_minutes=60`。首次自动维护全刷预计 21:40 左右，观察横带是否被压住。
 - 默认构建仍关闭维护全刷；是否启用 60 分钟版本需要产品决策，不能把实验环境当正式默认。
+
+## 2026-11-11 维护全刷 24 小时结果与默认启用
+
+- 60 分钟实验版连续运行约 22.8 小时：`display_full_refreshes=23`（首次手动全刷 + 22 次自动维护），`baseline_ready=true`，无故障/超时；当前累计 50 个局部窗口、29,200 px 面积后再次接近全刷点。
+- 60 分钟维护能按预期触发，横带不再需要人工全刷；每约 1 小时一次、约 35 秒闪屏是已知代价。
+- 已将默认 `esp32-l` 的 `MOJIAN_MAINTENANCE_FULL_MINUTES` 从 0 改为 60；`esp32-l-maintenance-fast=1` 仅保留为代码路径测试；需要关闭时用 `-D MOJIAN_MAINTENANCE_FULL_MINUTES=0`。
+- 默认固件已烧录并回到红色 A 日历；19:28:22 干净全刷，首次自动维护预计 20:28 左右。生产默认不再关闭自动全刷，这是本次明确的产品决策。
